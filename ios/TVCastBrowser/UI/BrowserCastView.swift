@@ -673,3 +673,4 @@ struct BrowserCastView: View {
         }
     }
 }
+

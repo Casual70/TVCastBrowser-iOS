@@ -8,7 +8,9 @@ local.properties
 /captures
 .externalNativeBuild
 .cxx
+local.properties
 app/build/
+
 ios/build/
 ios/Payload/
 ios/*.ipa

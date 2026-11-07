@@ -268,3 +268,4 @@ final class WebMediaSniffer: NSObject, ObservableObject, WKScriptMessageHandler 
     })();
     """
 }
+

@@ -425,3 +425,4 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
         return nil
     }
 }
+

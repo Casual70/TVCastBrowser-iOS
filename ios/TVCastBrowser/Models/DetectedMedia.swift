@@ -157,3 +157,4 @@ final class BrowserPreferences: ObservableObject {
         return cleaned
     }
 }
+

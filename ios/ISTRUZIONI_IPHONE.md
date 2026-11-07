@@ -25,3 +25,4 @@ Poiché Apple non consente di compilare app iOS nativamente su Windows né di in
    * Se sei su iOS 16 o successivo, attiva anche **Modalità sviluppatore** in **Impostazioni -> Privacy e sicurezza -> Modalità sviluppatore**.
    * Alla prima apertura dell'app su iPhone, quando iOS chiede *"TV Cast Browser vorrebbe trovare dispositivi sulla tua rete locale"*, tocca **Consenti** (indispensabile per trovare la Chromecast / Smart TV!).
 5. **Nota sull'Apple ID gratuito**: Le app firmate con un account Apple gratuito durano 7 giorni; lasciando attivo il demone Wi-Fi di Sideloadly (o usando **AltStore**), il rinnovo avviene automaticamente quando l'iPhone è sotto la stessa rete Wi-Fi del PC.
+
