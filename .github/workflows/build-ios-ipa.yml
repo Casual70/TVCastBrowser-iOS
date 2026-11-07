@@ -1,13 +1,45 @@
 name: Build iOS IPA & Android APK
+name: Build iOS IPA & Android FOSS Release APK
 
 on:
   push:
     branches: [ "main", "master" ]
+    tags: [ "v*" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  build-android:
+    name: Build Signed FOSS Android Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Build Signed Release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk TVCastBrowser-v1.0.0-foss-release.apk
+
+      - name: Upload Android Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVCastBrowser-Android-FOSS-APK
+          path: TVCastBrowser-v1.0.0-foss-release.apk
+          retention-days: 30
+
   build-ios:
     name: Build Unsigned iOS .ipa (Sideloadly / AltStore)
+    runs-on: macos-14
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -46,3 +78,26 @@ jobs:
           path: ios/TVCastBrowser-iOS.ipa
           retention-days: 30
 
+  publish-release:
+    name: Publish GitHub Release
+    needs: [ build-android, build-ios ]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: TVCastBrowser-Android-FOSS-APK
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: TVCastBrowser-iOS-IPA
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            TVCastBrowser-v1.0.0-foss-release.apk
+            TVCastBrowser-iOS.ipa
+          generate_release_notes: true

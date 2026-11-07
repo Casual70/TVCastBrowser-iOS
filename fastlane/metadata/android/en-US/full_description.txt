@@ -1,0 +1,9 @@
+TV Cast Browser is an open-source web browser designed to detect HTML5, HLS (.m3u8), DASH (.mpd), MP4, and WebM video streams on web pages and cast them directly to your Smart TV over local Wi-Fi.
+
+Key features:
+• 100% FOSS Cast protocol implementation (mDNS + CASTv2 TLS) with zero proprietary Google Play Services dependencies.
+• Built-in Local HTTP Proxy to forward streams requiring custom Referer, Cookie, or CORS headers, including dynamic HLS (#EXTM3U) playlist rewriting.
+• Primary Domain Lock: pin your main website and block all external new-tab popups and cross-domain ad redirects.
+• Recent history (up to 20 sites).
+• Integrated remote control bar (Play, Pause, Stop).
+

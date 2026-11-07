@@ -1,0 +1,6 @@
+Initial stable release v1.0.0:
+- 100% FOSS Cast engine (mDNS + CASTv2 TLS).
+- HLS (.m3u8), MP4 and WebM stream detection across frames.
+- Built-in local HTTP proxy with Referer, Cookie, CORS and HLS playlist rewriting.
+- Primary domain lock popup blocker and 20-site recent history.
+

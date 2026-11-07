@@ -34,6 +34,7 @@ import androidx.mediarouter.app.MediaRouteButton
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.google.android.gms.cast.framework.CastButtonFactory
+import com.tvcast.browser.cast.CastDevice
 import com.tvcast.browser.cast.TvCastManager
 import com.tvcast.browser.data.BrowserPreferences
 import com.tvcast.browser.data.HistoryItem
@@ -69,6 +70,7 @@ fun BrowserCastScreen(
 
     var showMediaSheet by remember { mutableStateOf(false) }
     var showHistorySheet by remember { mutableStateOf(false) }
+    var showCastDevicesSheet by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
 
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -292,9 +294,25 @@ fun BrowserCastScreen(
                                     MediaRouteButton(ctx).apply {
                                         CastButtonFactory.setUpMediaRouteButton(ctx.applicationContext, this)
                                     }
+                            // Pulsante FOSS Selettore Smart TV / Chromecast sulla rete Wi-Fi
+                            IconButton(
+                                onClick = {
+                                    castManager.startDiscovery()
+                                    showCastDevicesSheet = true
                                 },
                                 modifier = Modifier.size(40.dp)
                             )
+                            ) {
+                                Icon(
+                                    imageVector = if (castState.isConnected) Icons.Default.CastConnected else Icons.Default.Cast,
+                                    contentDescription = "Connetti Smart TV",
+                                    tint = if (castState.isConnected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                            }
                         }
 
                         // Barra di stato compatta per fissare velocemente la Pagina Principale o vedere il blocco attivo
@@ -381,6 +399,7 @@ fun BrowserCastScreen(
                 RemoteControlBar(
                     deviceName = castState.deviceName ?: "Smart TV non connessa",
                     mediaTitle = castState.activeMedia?.title ?: "Pronto per trasmettere",
+                    mediaTitle = castState.activeMedia?.title ?: (castState.statusMessage ?: "Pronto per trasmettere"),
                     isPlaying = castState.isPlaying,
                     onPlayPause = { castManager.togglePlayPause() },
                     onStop = { castManager.stopCasting() }
@@ -597,6 +616,32 @@ fun BrowserCastScreen(
         }
     }
 
+    // BottomSheet Selezione Smart TV / Chromecast
+    if (showCastDevicesSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCastDevicesSheet = false }
+        ) {
+            CastDevicesSheetContent(
+                devices = castState.discoveredDevices,
+                connectedDevice = castState.connectedDevice,
+                isDiscovering = castState.isDiscovering,
+                onSelectDevice = { device ->
+                    castManager.connectToDevice(device)
+                    showCastDevicesSheet = false
+                },
+                onManualIpConnect = { ip ->
+                    castManager.connectByManualIp(ip)
+                    showCastDevicesSheet = false
+                },
+                onRefresh = { castManager.startDiscovery() },
+                onDisconnect = {
+                    castManager.disconnect()
+                    showCastDevicesSheet = false
+                }
+            )
+        }
+    }
+
     // BottomSheet Flussi Video Rilevati
     if (showMediaSheet) {
         ModalBottomSheet(
@@ -612,6 +657,9 @@ fun BrowserCastScreen(
                 onSelectMedia = { media ->
                     castManager.castVideo(media)
                     showMediaSheet = false
+                    if (!castState.isConnected && castState.discoveredDevices.isEmpty()) {
+                        showCastDevicesSheet = true
+                    }
                 },
                 onClearAll = { sniffer.clearDetectedMedia() }
             )
@@ -640,6 +688,147 @@ fun BrowserCastScreen(
                 onClearHistory = { browserPrefs.clearHistory() }
             )
         }
+    }
+}
+
+@Composable
+private fun CastDevicesSheetContent(
+    devices: List<CastDevice>,
+    connectedDevice: CastDevice?,
+    isDiscovering: Boolean,
+    onSelectDevice: (CastDevice) -> Unit,
+    onManualIpConnect: (String) -> Unit,
+    onRefresh: () -> Unit,
+    onDisconnect: () -> Unit
+) {
+    var manualIp by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Connetti Smart TV / Chromecast",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (isDiscovering) "Ricerca sulla rete Wi-Fi locale..." else "Seleziona il dispositivo TV",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = onRefresh) {
+                Text("Aggiorna")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (devices.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Ricerca Smart TV sulla rete Wi-Fi...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 260.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(devices, key = { it.id }) { device ->
+                    val isSelected = connectedDevice?.id == device.id
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectDevice(device) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.CastConnected else Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = device.friendlyName,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = "${device.modelName} • ${device.host}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Text(
+                                    text = "Connesso",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Connessione manuale tramite IP della TV
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = manualIp,
+                onValueChange = { manualIp = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("Oppure inserisci IP TV (es. 192.168.1.50)") }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = { if (manualIp.isNotBlank()) onManualIpConnect(manualIp) }
+            ) {
+                Text("Connetti")
+            }
+        }
+
+        if (connectedDevice != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Disconnetti da ${connectedDevice.friendlyName}")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -824,6 +1013,7 @@ private fun DetectedMediaSheetContent(
                 Text(
                     text = if (isConnectedToTv) "TV connessa: $tvName"
                     else "Suggerimento: connetti prima la Smart TV dall'icona Cast in alto",
+                    else "Suggerimento: connetti la Smart TV dall'icona Cast in alto (o premi Cast per auto-connettere)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

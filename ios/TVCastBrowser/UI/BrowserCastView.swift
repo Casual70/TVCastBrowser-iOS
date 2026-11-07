@@ -282,12 +282,15 @@ struct BrowserCastView: View {
         }
         .sheet(isPresented: $showMediaSheet) {
             mediaSheet
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showHistorySheet) {
             historySheet
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showCastDevicesSheet) {
             castDevicesSheet
+                .presentationDetents([.medium])
         }
     }
 
@@ -434,6 +437,7 @@ struct BrowserCastView: View {
     }
 
     private var mediaSheet: some View {
+        NavigationStack {
         NavigationView {
             List {
                 Section {
@@ -491,6 +495,7 @@ struct BrowserCastView: View {
             .navigationTitle("Trasmetti Video")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !sniffer.detectedMediaList.isEmpty {
                         Button("Pulisci") {
@@ -504,6 +509,7 @@ struct BrowserCastView: View {
     }
 
     private var historySheet: some View {
+        NavigationStack {
         NavigationView {
             List {
                 Section("Pagina Principale (Dominio bloccato)") {
@@ -565,6 +571,7 @@ struct BrowserCastView: View {
             .navigationTitle("Principale & Recenti")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !prefs.recentHistory.isEmpty {
                         Button("Cancella tutto") {
@@ -578,6 +585,7 @@ struct BrowserCastView: View {
     }
 
     private var castDevicesSheet: some View {
+        NavigationStack {
         NavigationView {
             List {
                 Section("Smart TV / Chromecast sulla rete Wi-Fi") {
@@ -629,6 +637,7 @@ struct BrowserCastView: View {
             .navigationTitle("Connetti Smart TV")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Aggiorna") {
                         castManager.startDiscovery()

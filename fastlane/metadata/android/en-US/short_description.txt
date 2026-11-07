@@ -1,0 +1,2 @@
+FOSS web browser with Smart TV video casting, local HLS proxy and popup blocker.
+

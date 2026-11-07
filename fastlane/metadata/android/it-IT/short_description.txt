@@ -1,0 +1,2 @@
+Browser web FOSS con trasmissione video su Smart TV, proxy HLS e blocco popup.
+

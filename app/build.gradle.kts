@@ -14,15 +14,40 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-draft"
+        versionName = "1.0.0"
 
         vectorDrawables {
             useSupportLibrary = true
         }
     }
 
+    // Disabilita il blocco proprietario DEPENDENCY_INFO_BLOCK di Google per piena conformità F-Droid / IzzyOnDroid
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystoreFile = rootProject.file("keystore/tvcast-release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "tvcast2026"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "tvcast"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "tvcast2026"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            val keystoreFile = rootProject.file("keystore/tvcast-release.jks")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -62,6 +87,7 @@ dependencies {
     implementation(libs.play.services.cast.framework)
 
     // Enhanced WebView capabilities
+    // Enhanced WebView capabilities (Open Source AndroidX WebKit)
     implementation(libs.androidx.webkit)
 
     debugImplementation(libs.androidx.ui.tooling)
