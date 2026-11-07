@@ -12,10 +12,15 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,9 +30,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
@@ -37,8 +49,10 @@ import com.tvcast.browser.cast.TvCastManager
 import com.tvcast.browser.data.BrowserPreferences
 import com.tvcast.browser.data.HistoryItem
 import com.tvcast.browser.model.DetectedMedia
+import com.tvcast.browser.proxy.ProxyBufferStats
 import com.tvcast.browser.sniffer.MediaSniffer
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -72,7 +86,6 @@ fun BrowserCastScreen(
     var showHomeMenu by remember { mutableStateOf(false) }
 
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    // Consente la navigazione esplicita avviata dall'utente (barra URL / Cronologia / Home)
     var allowNextUserNavigation by remember { mutableStateOf(false) }
 
     val currentBaseDomain = remember(currentUrl) { BrowserPreferences.extractBaseDomain(currentUrl) }
@@ -358,38 +371,12 @@ fun BrowserCastScreen(
                 }
             }
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showMediaSheet = true },
-                containerColor = if (detectedMedia.isNotEmpty()) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                icon = {
-                    BadgedBox(
-                        badge = {
-                            if (detectedMedia.isNotEmpty()) {
-                                Badge { Text(detectedMedia.size.toString()) }
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.CastConnected, contentDescription = "Video rilevati")
-                    }
-                },
-                text = {
-                    Text(
-                        if (detectedMedia.isEmpty()) "Nessun video"
-                        else "${detectedMedia.size} Video pronti"
-                    )
-                }
-            )
-        },
         bottomBar = {
             if (castState.activeMedia != null || castState.isConnected) {
                 RemoteControlBar(
                     deviceName = castState.deviceName ?: "Smart TV non connessa",
                     mediaTitle = castState.activeMedia?.title ?: (castState.statusMessage ?: "Pronto per trasmettere"),
+                    bufferStats = castState.bufferStats,
                     isPlaying = castState.isPlaying,
                     onPlayPause = { castManager.togglePlayPause() },
                     onStop = { castManager.stopCasting() }
@@ -397,10 +384,13 @@ fun BrowserCastScreen(
             }
         }
     ) { innerPadding ->
+        var parentBoxSize by remember { mutableStateOf(IntSize.Zero) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .onSizeChanged { parentBoxSize = it }
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -411,7 +401,6 @@ fun BrowserCastScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
 
-                        // Abilita cookie anche di terze parti (indispensabile per player iframe come VixCloud)
                         val cookieManager = CookieManager.getInstance()
                         cookieManager.setAcceptCookie(true)
                         cookieManager.setAcceptThirdPartyCookies(this, true)
@@ -421,8 +410,6 @@ fun BrowserCastScreen(
                             domStorageEnabled = true
                             mediaPlaybackRequiresUserGesture = false
                             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            // IMPORTANTE: setSupportMultipleWindows(true) cattura tutti i target="_blank" e window.open
-                            // dentro onCreateWindow invece di lasciarli sovrascrivere la scheda corrente!
                             setSupportMultipleWindows(true)
                             javaScriptCanOpenWindowsAutomatically = false
                             userAgentString = settings.userAgentString.replace("; wv", "")
@@ -430,7 +417,6 @@ fun BrowserCastScreen(
 
                         addJavascriptInterface(sniffer.JsMediaBridge(), "TvCastBridge")
 
-                        // Inietta lo scanner XHR/Fetch/DOM e il blocco window.open in TUTTI i frame (inclusi iframe cross-origin!)
                         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                             try {
                                 WebViewCompat.addDocumentStartJavaScript(
@@ -452,24 +438,20 @@ fun BrowserCastScreen(
                                 val scheme = targetUri.scheme?.lowercase() ?: return true
                                 val targetUrl = targetUri.toString()
 
-                                // 1. Blocca intent://, market://, tel:// o schemi non-web usati dalle pubblicità
                                 if (scheme != "http" && scheme != "https") {
                                     sniffer.incrementBlockedPopup()
                                     return true
                                 }
 
-                                // 2. Lascia caricare normalmente gli iframe interni (es. vixcloud.co dentro la pagina)
                                 if (!req.isForMainFrame) {
                                     return false
                                 }
 
-                                // 3. Se è una navigazione avviata esplicitamente dall'utente nella UI, consentila
                                 if (allowNextUserNavigation) {
                                     allowNextUserNavigation = false
                                     return false
                                 }
 
-                                // 4. Controllo Blocco Dominio Principale (Domain Lock) sulla scheda principale
                                 if (!browserPrefs.isUrlAllowedByDomainLock(targetUrl)) {
                                     sniffer.incrementBlockedPopup()
                                     val blockedHost = targetUri.host ?: targetUrl
@@ -482,7 +464,6 @@ fun BrowserCastScreen(
                                     return true
                                 }
 
-                                // 5. Anche se non è ancora fissata una Home, blocca domini pubblicitari noti
                                 if (sniffer.shouldBlockRequest(req) != null) {
                                     return true
                                 }
@@ -507,7 +488,6 @@ fun BrowserCastScreen(
                                 currentTitle = view?.title.orEmpty()
                                 view?.evaluateJavascript(MediaSniffer.DOCUMENT_START_SCANNER_JS, null)
 
-                                // Registra nella cronologia (limitata agli ultimi 20 siti)
                                 browserPrefs.addHistoryEntry(
                                     url = loadedUrl,
                                     title = currentTitle.ifBlank { loadedUrl }
@@ -520,12 +500,10 @@ fun BrowserCastScreen(
                             ): WebResourceResponse? {
                                 if (request == null) return null
 
-                                // 1. Controllo AdBlock su script, popup e tracker
                                 sniffer.shouldBlockRequest(request)?.let { blockedResponse ->
                                     return blockedResponse
                                 }
 
-                                // 2. Ispezione URL per flussi video (.m3u8, /playlist/, .mp4, .mpd, .webm)
                                 sniffer.inspectRequest(
                                     request = request,
                                     currentPageTitle = currentTitle,
@@ -541,11 +519,6 @@ fun BrowserCastScreen(
                                 currentTitle = title.orEmpty()
                             }
 
-                            /**
-                             * Intercetta OGNI tentativo di aprire una nuova scheda (target="_blank" o window.open).
-                             * Consente la navigazione nella scheda attuale SOLO se l'URL appartiene al dominio
-                             * principale (o allo stesso dominio della pagina corrente); blocca tutto il resto.
-                             */
                             override fun onCreateWindow(
                                 view: WebView?,
                                 isDialog: Boolean,
@@ -573,11 +546,9 @@ fun BrowserCastScreen(
                                             popupDomain != null &&
                                             popupDomain == mainDomain
                                         ) {
-                                            // Stesso dominio: apri nella scheda corrente
                                             allowNextUserNavigation = true
                                             parentWebView.loadUrl(popupUrl)
                                         } else {
-                                            // Dominio esterno / pubblicità: blocca completamente!
                                             sniffer.incrementBlockedPopup()
                                             if (popupDomain != null) {
                                                 coroutineScope.launch {
@@ -602,6 +573,16 @@ fun BrowserCastScreen(
                         webViewRef = this
                     }
                 }
+            )
+
+            // Pulsante Cast Flottante e Trascinabile (Long-Press + Drag o Trascinamento diretto)
+            DraggableFloatingCastButton(
+                detectedCount = detectedMedia.size,
+                parentSize = parentBoxSize,
+                onClick = { showMediaSheet = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
             )
         }
     }
@@ -643,6 +624,7 @@ fun BrowserCastScreen(
                 tvName = castState.deviceName,
                 useLocalProxy = castState.useLocalProxy,
                 localProxyEndpoint = castState.localProxyEndpoint,
+                bufferStats = castState.bufferStats,
                 onToggleLocalProxy = { castManager.setUseLocalProxy(it) },
                 onSelectMedia = { media ->
                     castManager.castVideo(media)
@@ -676,6 +658,120 @@ fun BrowserCastScreen(
                 },
                 onDeleteEntry = { url -> browserPrefs.removeHistoryEntry(url) },
                 onClearHistory = { browserPrefs.clearHistory() }
+            )
+        }
+    }
+}
+
+/**
+ * Pulsante Cast flottante spostabile liberamente sullo schermo (tramite pressione prolungata + trascinamento
+ * o trascinamento diretto) per non coprire mai i controlli dei siti web sottostanti.
+ */
+@Composable
+private fun DraggableFloatingCastButton(
+    detectedCount: Int,
+    parentSize: IntSize,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+    var buttonSize by remember { mutableStateOf(IntSize.Zero) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isDragging) 1.08f else 1f,
+        label = "fabScale"
+    )
+
+    fun applyDragDelta(dx: Float, dy: Float) {
+        val minX = if (parentSize.width > buttonSize.width) {
+            -(parentSize.width - buttonSize.width - 48).toFloat().coerceAtLeast(0f)
+        } else {
+            -800f
+        }
+        val minY = if (parentSize.height > buttonSize.height) {
+            -(parentSize.height - buttonSize.height - 48).toFloat().coerceAtLeast(0f)
+        } else {
+            -1600f
+        }
+        offsetX = (offsetX + dx).coerceIn(minX, 0f)
+        offsetY = (offsetY + dy).coerceIn(minY, 0f)
+    }
+
+    val hasVideos = detectedCount > 0
+    val containerColor = if (hasVideos) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f)
+    }
+    val contentColor = if (hasVideos) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .onSizeChanged { buttonSize = it }
+            .scale(scale)
+            // Supporta sia long-press + trascinamento sia trascinamento diretto (1:1 col dito + feedback aptico)
+            .pointerInput(parentSize) {
+                detectDragGestures(
+                    onDragStart = {
+                        isDragging = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    onDragEnd = { isDragging = false },
+                    onDragCancel = { isDragging = false },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        applyDragDelta(dragAmount.x, dragAmount.y)
+                    }
+                )
+            }
+            .clickable {
+                if (!isDragging) onClick()
+            },
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        shadowElevation = if (isDragging) 14.dp else 6.dp,
+        border = if (isDragging) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary)
+        } else {
+            null
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.DragIndicator,
+                contentDescription = "Trascina per spostare",
+                modifier = Modifier.size(18.dp),
+                tint = contentColor.copy(alpha = 0.75f)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            BadgedBox(
+                badge = {
+                    if (hasVideos) {
+                        Badge { Text(detectedCount.toString()) }
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CastConnected,
+                    contentDescription = "Video rilevati"
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (!hasVideos) "Nessun video" else "$detectedCount Video pronti",
+                style = MaterialTheme.typography.labelLarge
             )
         }
     }
@@ -788,7 +884,6 @@ private fun CastDevicesSheetContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Connessione manuale tramite IP della TV
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -845,7 +940,6 @@ private fun RecentHistorySheetContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Card Pagina Principale
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -981,6 +1075,7 @@ private fun DetectedMediaSheetContent(
     tvName: String?,
     useLocalProxy: Boolean,
     localProxyEndpoint: String?,
+    bufferStats: ProxyBufferStats,
     onToggleLocalProxy: (Boolean) -> Unit,
     onSelectMedia: (DetectedMedia) -> Unit,
     onClearAll: () -> Unit
@@ -1016,7 +1111,7 @@ private fun DetectedMediaSheetContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Card configurazione Proxy HTTP Locale
+        // Card configurazione Proxy HTTP Locale + Pre-Buffer RAM
         Surface(
             tonalElevation = 2.dp,
             shape = MaterialTheme.shapes.medium,
@@ -1029,20 +1124,24 @@ private fun DetectedMediaSheetContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Router,
+                    imageVector = Icons.Default.Memory,
                     contentDescription = null,
                     tint = if (useLocalProxy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Proxy HTTP Locale (Referer & Cookie)",
+                        text = "Proxy + Pre-Buffer RAM Anti-Interruzione",
                         style = MaterialTheme.typography.labelLarge
                     )
                     Text(
                         text = if (useLocalProxy) {
-                            if (localProxyEndpoint != null) "Attivo su Wi-Fi ($localProxyEndpoint)"
-                            else "Attivo (connetti il Wi-Fi per trasmettere alla TV)"
+                            val bufInfo = if (bufferStats.cachedSegmentsCount > 0) {
+                                " • Buffer: ${bufferStats.cachedSegmentsCount} seg (${bufferStats.cachedMegabytes})"
+                            } else {
+                                " • Pre-buffer 6 segmenti attivo"
+                            }
+                            (localProxyEndpoint ?: "Wi-Fi") + bufInfo
                         } else {
                             "Disattivato (invia URL diretto alla TV)"
                         },
@@ -1128,6 +1227,7 @@ private fun DetectedMediaSheetContent(
 private fun RemoteControlBar(
     deviceName: String,
     mediaTitle: String,
+    bufferStats: ProxyBufferStats,
     isPlaying: Boolean,
     onPlayPause: () -> Unit,
     onStop: () -> Unit
@@ -1150,10 +1250,17 @@ private fun RemoteControlBar(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                val bufferLabel = if (bufferStats.cachedSegmentsCount > 0) {
+                    " • Buffer RAM: ${bufferStats.cachedSegmentsCount} seg (${bufferStats.cachedMegabytes})"
+                } else {
+                    ""
+                }
                 Text(
-                    text = deviceName,
+                    text = "$deviceName$bufferLabel",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = mediaTitle,

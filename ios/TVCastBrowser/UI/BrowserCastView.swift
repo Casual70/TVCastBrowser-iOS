@@ -205,6 +205,8 @@ struct BrowserCastView: View {
     @State private var showHistorySheet = false
     @State private var showCastDevicesSheet = false
     @State private var bannerMessage: String?
+    @State private var fabOffset: CGSize = .zero
+    @State private var fabDragTranslation: CGSize = .zero
 
     private var currentBaseDomain: String? {
         BrowserPreferences.extractBaseDomain(from: currentUrl)
@@ -259,6 +261,9 @@ struct BrowserCastView: View {
                     Spacer()
                     Button(action: { showMediaSheet = true }) {
                         HStack(spacing: 8) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.caption)
+                                .opacity(0.75)
                             Image(systemName: "tv.and.mediabox")
                             Text(sniffer.detectedMediaList.isEmpty ? "Nessun video" : "\(sniffer.detectedMediaList.count) Video pronti")
                                 .fontWeight(.semibold)
@@ -268,8 +273,25 @@ struct BrowserCastView: View {
                         .background(sniffer.detectedMediaList.isEmpty ? Color(.secondarySystemBackground) : Color.accentColor)
                         .foregroundColor(sniffer.detectedMediaList.isEmpty ? .primary : .white)
                         .clipShape(Capsule())
-                        .shadow(radius: 5)
+                        .shadow(radius: 6)
                     }
+                    .offset(
+                        x: fabOffset.width + fabDragTranslation.width,
+                        y: fabOffset.height + fabDragTranslation.height
+                    )
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 8)
+                            .onChanged { value in
+                                fabDragTranslation = value.translation
+                            }
+                            .onEnded { value in
+                                fabOffset = CGSize(
+                                    width: min(0, fabOffset.width + value.translation.width),
+                                    height: min(0, fabOffset.height + value.translation.height)
+                                )
+                                fabDragTranslation = .zero
+                            }
+                    )
                     .padding(.trailing, 16)
                     .padding(.bottom, (castManager.activeMedia != nil || castManager.connectedDevice != nil) ? 70 : 16)
                 }
@@ -282,15 +304,12 @@ struct BrowserCastView: View {
         }
         .sheet(isPresented: $showMediaSheet) {
             mediaSheet
-                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showHistorySheet) {
             historySheet
-                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showCastDevicesSheet) {
             castDevicesSheet
-                .presentationDetents([.medium])
         }
     }
 
@@ -437,7 +456,6 @@ struct BrowserCastView: View {
     }
 
     private var mediaSheet: some View {
-        NavigationStack {
         NavigationView {
             List {
                 Section {
@@ -495,7 +513,6 @@ struct BrowserCastView: View {
             .navigationTitle("Trasmetti Video")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !sniffer.detectedMediaList.isEmpty {
                         Button("Pulisci") {
@@ -509,7 +526,6 @@ struct BrowserCastView: View {
     }
 
     private var historySheet: some View {
-        NavigationStack {
         NavigationView {
             List {
                 Section("Pagina Principale (Dominio bloccato)") {
@@ -571,7 +587,6 @@ struct BrowserCastView: View {
             .navigationTitle("Principale & Recenti")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !prefs.recentHistory.isEmpty {
                         Button("Cancella tutto") {
@@ -585,7 +600,6 @@ struct BrowserCastView: View {
     }
 
     private var castDevicesSheet: some View {
-        NavigationStack {
         NavigationView {
             List {
                 Section("Smart TV / Chromecast sulla rete Wi-Fi") {
@@ -637,7 +651,6 @@ struct BrowserCastView: View {
             .navigationTitle("Connetti Smart TV")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Aggiorna") {
                         castManager.startDiscovery()
@@ -682,4 +695,3 @@ struct BrowserCastView: View {
         }
     }
 }
-

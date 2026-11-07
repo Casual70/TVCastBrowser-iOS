@@ -4,9 +4,12 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import com.tvcast.browser.model.DetectedMedia
 import com.tvcast.browser.proxy.LocalStreamProxy
+import com.tvcast.browser.proxy.ProxyBufferStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -53,9 +57,17 @@ data class CastUiState(
     val isPlaying: Boolean = false,
     val useLocalProxy: Boolean = true,
     val localProxyEndpoint: String? = null,
+    val bufferStats: ProxyBufferStats = ProxyBufferStats(),
     val statusMessage: String? = null
 )
 
+/**
+ * Gestore 100% Open Source (FOSS) del protocollo Google Cast (CASTv2 su TLS porta 8009)
+ * con:
+ * - Pre-Buffering RAM dei segmenti HLS tramite [LocalStreamProxy]
+ * - Blocco risparmio energetico Wi-Fi (`WifiLock` Low-Latency/High-Perf) e CPU (`PartialWakeLock`)
+ * - Riconnessione automatica trasparente del canale di controllo CASTv2 senza interrompere il video sulla TV.
+ */
 class TvCastManager(
     context: Context,
     private val streamProxy: LocalStreamProxy = LocalStreamProxy()
@@ -63,7 +75,11 @@ class TvCastManager(
     private val appContext = context.applicationContext
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    private val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var wifiHighPerfLock: WifiManager.WifiLock? = null
+    private var cpuWakeLock: PowerManager.WakeLock? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -78,11 +94,23 @@ class TvCastManager(
     private var socketOut: DataOutputStream? = null
     private var readerJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var reconnectJob: Job? = null
 
     private val requestIdCounter = AtomicInteger(1)
+    private val shouldLoadNewMedia = AtomicBoolean(false)
+    private val userRequestedDisconnect = AtomicBoolean(false)
+
     @Volatile private var receiverTransportId: String? = null
     @Volatile private var mediaSessionId: Int? = null
     @Volatile private var pendingMediaToLoad: DetectedMedia? = null
+
+    init {
+        scope.launch {
+            streamProxy.bufferStats.collectLatest { stats ->
+                _uiState.update { it.copy(bufferStats = stats) }
+            }
+        }
+    }
 
     fun register() {
         streamProxy.start()
@@ -92,12 +120,14 @@ class TvCastManager(
 
     fun unregister() {
         stopDiscovery()
+        // Nota: NON fermiamo streamProxy né i WakeLock/WifiLock se c'è una trasmissione attiva!
     }
 
     fun shutdown() {
         stopDiscovery()
         disconnect()
         streamProxy.stop()
+        releaseStreamingLocks()
     }
 
     fun setUseLocalProxy(enabled: Boolean) {
@@ -113,6 +143,60 @@ class TvCastManager(
         val endpoint = if (ip != null) "$ip:${streamProxy.boundPort}" else null
         _uiState.update { it.copy(localProxyEndpoint = endpoint) }
     }
+
+    @Suppress("DEPRECATION")
+    private fun acquireStreamingLocks() {
+        try {
+            if (wifiHighPerfLock == null) {
+                val lockMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
+                wifiHighPerfLock = wifiManager?.createWifiLock(lockMode, "TVCastBrowser:WifiStreamingLock")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (wifiHighPerfLock?.isHeld == false) {
+                wifiHighPerfLock?.acquire()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Impossibile acquisire WifiLock: ${e.message}")
+        }
+
+        try {
+            if (cpuWakeLock == null) {
+                cpuWakeLock = powerManager?.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "TVCastBrowser::StreamingWakeLock"
+                )?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (cpuWakeLock?.isHeld == false) {
+                cpuWakeLock?.acquire(4 * 60 * 60 * 1000L) // Max 4 ore
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Impossibile acquisire WakeLock: ${e.message}")
+        }
+    }
+
+    private fun releaseStreamingLocks() {
+        try {
+            if (wifiHighPerfLock?.isHeld == true) {
+                wifiHighPerfLock?.release()
+            }
+        } catch (_: Exception) {
+        }
+        try {
+            if (cpuWakeLock?.isHeld == true) {
+                cpuWakeLock?.release()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    // MARK: - mDNS / NSD Discovery (_googlecast._tcp.)
 
     fun startDiscovery() {
         refreshProxyEndpoint()
@@ -249,53 +333,85 @@ class TvCastManager(
         }
     }
 
+    // MARK: - Connessione CASTv2 su TLS (Porta 8009) con Auto-Reconnect
+
     fun connectToDevice(device: CastDevice) {
-        disconnect()
+        userRequestedDisconnect.set(false)
+        reconnectJob?.cancel()
+        closeSocketOnly()
+        acquireStreamingLocks()
+
         _uiState.update {
             it.copy(statusMessage = "Connessione a ${device.friendlyName}...")
         }
 
         scope.launch {
-            try {
-                val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-                })
-                val sslContext = SSLContext.getInstance("TLS")
-                sslContext.init(null, trustAll, SecureRandom())
+            openCastSocket(device, isAutoReconnect = false)
+        }
+    }
 
-                val socket = sslContext.socketFactory.createSocket() as SSLSocket
-                socket.connect(InetSocketAddress(device.host, device.port), 10_000)
-                socket.startHandshake()
+    private suspend fun openCastSocket(device: CastDevice, isAutoReconnect: Boolean): Boolean {
+        return try {
+            val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            })
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, trustAll, SecureRandom())
 
-                sslSocket = socket
-                socketOut = DataOutputStream(socket.outputStream)
+            val socket = sslContext.socketFactory.createSocket() as SSLSocket
+            socket.keepAlive = true
+            socket.tcpNoDelay = true
+            socket.connect(InetSocketAddress(device.host, device.port), 10_000)
+            socket.startHandshake()
 
-                _uiState.update {
-                    it.copy(
-                        isConnected = true,
-                        connectedDevice = device,
-                        deviceName = device.friendlyName,
-                        statusMessage = "Connesso a ${device.friendlyName}"
-                    )
-                }
+            sslSocket = socket
+            socketOut = DataOutputStream(socket.outputStream)
 
-                sendCastMessage(
-                    namespace = NS_CONNECTION,
-                    destinationId = "receiver-0",
-                    payload = JSONObject().put("type", "CONNECT")
+            _uiState.update {
+                it.copy(
+                    isConnected = true,
+                    connectedDevice = device,
+                    deviceName = device.friendlyName,
+                    statusMessage = if (isAutoReconnect && it.activeMedia != null) {
+                        "Connesso a ${device.friendlyName} (Buffer attivo)"
+                    } else {
+                        "Connesso a ${device.friendlyName}"
+                    }
                 )
+            }
 
-                startReaderLoop(socket)
-                startHeartbeatLoop()
+            // 1. Invia CONNECT al receiver-0
+            sendCastMessage(
+                namespace = NS_CONNECTION,
+                destinationId = "receiver-0",
+                payload = JSONObject().put("type", "CONNECT")
+            )
 
-                pendingMediaToLoad?.let { pending ->
-                    pendingMediaToLoad = null
-                    castVideo(pending)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Errore connessione CASTv2 a ${device.host}:${device.port}", e)
+            // 2. Avvia loop di lettura e heartbeat
+            startReaderLoop(socket, device)
+            startHeartbeatLoop()
+
+            // 3. Se c'era un video in attesa di trasmissione, avvialo subito;
+            //    altrimenti chiedi lo stato attuale del receiver senza interrompere la riproduzione!
+            val pending = pendingMediaToLoad
+            if (pending != null) {
+                pendingMediaToLoad = null
+                castVideo(pending)
+            } else {
+                sendCastMessage(
+                    namespace = NS_RECEIVER,
+                    destinationId = "receiver-0",
+                    payload = JSONObject()
+                        .put("type", "GET_STATUS")
+                        .put("requestId", requestIdCounter.getAndIncrement())
+                )
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore connessione CASTv2 a ${device.host}:${device.port}", e)
+            if (!isAutoReconnect) {
                 _uiState.update {
                     it.copy(
                         isConnected = false,
@@ -305,6 +421,7 @@ class TvCastManager(
                     )
                 }
             }
+            false
         }
     }
 
@@ -321,19 +438,28 @@ class TvCastManager(
         connectToDevice(device)
     }
 
-    fun disconnect() {
+    private fun closeSocketOnly() {
         heartbeatJob?.cancel()
         heartbeatJob = null
         readerJob?.cancel()
         readerJob = null
-        receiverTransportId = null
-        mediaSessionId = null
         try {
             sslSocket?.close()
         } catch (_: Exception) {
         }
         sslSocket = null
         socketOut = null
+    }
+
+    fun disconnect() {
+        userRequestedDisconnect.set(true)
+        reconnectJob?.cancel()
+        reconnectJob = null
+        closeSocketOnly()
+        receiverTransportId = null
+        mediaSessionId = null
+        shouldLoadNewMedia.set(false)
+        releaseStreamingLocks()
 
         _uiState.update {
             it.copy(
@@ -349,6 +475,7 @@ class TvCastManager(
     }
 
     fun castVideo(media: DetectedMedia) {
+        acquireStreamingLocks()
         refreshProxyEndpoint()
         val streamUrlToCast = if (_uiState.value.useLocalProxy) {
             streamProxy.createProxiedUrl(media)
@@ -377,6 +504,7 @@ class TvCastManager(
         }
 
         scope.launch {
+            shouldLoadNewMedia.set(true)
             receiverTransportId = null
             val launchJson = JSONObject()
                 .put("type", "LAUNCH")
@@ -392,13 +520,13 @@ class TvCastManager(
     }
 
     private fun sendMediaLoad(transportId: String, media: DetectedMedia) {
-        val streamUrlToCast = if (_uiState.value.useLocalProxy) {
+        val streamUrlToCast = _uiState.value.activeStreamUrl ?: if (_uiState.value.useLocalProxy) {
             streamProxy.createProxiedUrl(media)
         } else {
             media.url
         }
         val modeLabel = if (_uiState.value.useLocalProxy && streamUrlToCast != media.url) {
-            "${media.format.label} • Proxy Locale"
+            "${media.format.label} • Proxy + Buffer RAM"
         } else {
             "${media.format.label} • Diretto"
         }
@@ -465,6 +593,7 @@ class TvCastManager(
     fun stopCasting() {
         val transportId = receiverTransportId
         val sessionId = mediaSessionId
+        shouldLoadNewMedia.set(false)
         if (transportId != null && sessionId != null) {
             scope.launch {
                 val payload = JSONObject()
@@ -478,6 +607,7 @@ class TvCastManager(
                 )
             }
         }
+        streamProxy.clearBufferCache()
         _uiState.update {
             it.copy(
                 activeMedia = null,
@@ -492,7 +622,7 @@ class TvCastManager(
         heartbeatJob?.cancel()
         heartbeatJob = scope.launch {
             while (isActive && sslSocket?.isConnected == true) {
-                delay(5_000)
+                delay(4_500)
                 sendCastMessage(
                     namespace = NS_HEARTBEAT,
                     destinationId = "receiver-0",
@@ -502,7 +632,7 @@ class TvCastManager(
         }
     }
 
-    private fun startReaderLoop(socket: SSLSocket) {
+    private fun startReaderLoop(socket: SSLSocket, device: CastDevice) {
         readerJob?.cancel()
         readerJob = scope.launch {
             try {
@@ -512,26 +642,55 @@ class TvCastManager(
                     if (length <= 0 || length > 262_144) continue
                     val packetBytes = ByteArray(length)
                     input.readFully(packetBytes)
-                    val utf8Payload = extractUtf8PayloadFromProtobuf(packetBytes) ?: continue
-                    handleIncomingJson(utf8Payload)
+                    val parsed = extractCastPacketFromProtobuf(packetBytes) ?: continue
+                    handleIncomingPacket(parsed)
                 }
             } catch (e: Exception) {
-                if (isActive) {
-                    Log.w(TAG, "Connessione CASTv2 chiusa: ${e.message}")
-                    disconnect()
+                if (isActive && !userRequestedDisconnect.get()) {
+                    Log.w(TAG, "Socket controllo CASTv2 chiuso (${e.message}), avvio auto-reconnect...")
+                    scheduleAutoReconnect(device)
                 }
             }
         }
     }
 
-    private fun handleIncomingJson(rawJson: String) {
+    /**
+     * Se il socket di controllo sulla porta 8009 cade temporaneamente mentre la TV sta riproducendo
+     * dal LocalStreamProxy, riconnette il socket di controllo in background senza interrompere il video!
+     */
+    private fun scheduleAutoReconnect(device: CastDevice) {
+        if (userRequestedDisconnect.get()) return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            closeSocketOnly()
+            for (attempt in 1..10) {
+                if (userRequestedDisconnect.get()) return@launch
+                delay(2_000L)
+                Log.i(TAG, "Tentativo auto-reconnect CASTv2 #$attempt a ${device.friendlyName}...")
+                if (openCastSocket(device, isAutoReconnect = true)) {
+                    Log.i(TAG, "Auto-reconnect CASTv2 riuscito!")
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private data class IncomingCastPacket(
+        val sourceId: String,
+        val destinationId: String,
+        val namespace: String,
+        val payloadUtf8: String
+    )
+
+    private fun handleIncomingPacket(packet: IncomingCastPacket) {
         try {
-            val obj = JSONObject(rawJson)
+            val obj = JSONObject(packet.payloadUtf8)
             when (obj.optString("type")) {
                 "PING" -> {
+                    val replyDest = packet.sourceId.ifBlank { "receiver-0" }
                     sendCastMessage(
                         namespace = NS_HEARTBEAT,
-                        destinationId = "receiver-0",
+                        destinationId = replyDest,
                         payload = JSONObject().put("type", "PONG")
                     )
                 }
@@ -542,10 +701,27 @@ class TvCastManager(
                         val app = apps.optJSONObject(i) ?: continue
                         if (app.optString("appId") == DEFAULT_MEDIA_RECEIVER_APP_ID) {
                             val transportId = app.optString("transportId")
-                            if (transportId.isNotBlank() && receiverTransportId != transportId) {
+                            if (transportId.isNotBlank()) {
+                                val isNewTransport = (receiverTransportId != transportId)
                                 receiverTransportId = transportId
-                                _uiState.value.activeMedia?.let { media ->
-                                    sendMediaLoad(transportId, media)
+                                if (shouldLoadNewMedia.compareAndSet(true, false)) {
+                                    _uiState.value.activeMedia?.let { media ->
+                                        sendMediaLoad(transportId, media)
+                                    }
+                                } else if (isNewTransport) {
+                                    // Ri-aggancia la sessione media in corso senza riavviare il video
+                                    sendCastMessage(
+                                        namespace = NS_CONNECTION,
+                                        destinationId = transportId,
+                                        payload = JSONObject().put("type", "CONNECT")
+                                    )
+                                    sendCastMessage(
+                                        namespace = NS_MEDIA,
+                                        destinationId = transportId,
+                                        payload = JSONObject()
+                                            .put("type", "GET_STATUS")
+                                            .put("requestId", requestIdCounter.getAndIncrement())
+                                    )
                                 }
                             }
                         }
@@ -619,8 +795,13 @@ class TvCastManager(
         bos.write(bytes)
     }
 
-    private fun extractUtf8PayloadFromProtobuf(bytes: ByteArray): String? {
+    private fun extractCastPacketFromProtobuf(bytes: ByteArray): IncomingCastPacket? {
         var idx = 0
+        var sourceId = ""
+        var destinationId = ""
+        var namespace = ""
+        var payloadUtf8: String? = null
+
         while (idx < bytes.size) {
             val tag = bytes[idx].toInt() and 0xFF
             idx++
@@ -643,15 +824,25 @@ class TvCastManager(
                     shift += 7
                 }
                 if (length < 0 || idx + length > bytes.size) return null
-                if (fieldNum == 6) {
-                    return String(bytes, idx, length, Charsets.UTF_8)
+                val strVal = String(bytes, idx, length, Charsets.UTF_8)
+                when (fieldNum) {
+                    2 -> sourceId = strVal
+                    3 -> destinationId = strVal
+                    4 -> namespace = strVal
+                    6 -> payloadUtf8 = strVal
                 }
                 idx += length
             } else {
                 break
             }
         }
-        return null
+        val payload = payloadUtf8 ?: return null
+        return IncomingCastPacket(
+            sourceId = sourceId,
+            destinationId = destinationId,
+            namespace = namespace,
+            payloadUtf8 = payload
+        )
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.tvcast.browser
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -12,9 +13,6 @@ import com.tvcast.browser.data.BrowserPreferences
 import com.tvcast.browser.sniffer.MediaSniffer
 import com.tvcast.browser.ui.BrowserCastScreen
 
-/**
- * Estende AppCompatActivity (richiesto da MediaRouteButton e CastContext di Google Play Services).
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var mediaSniffer: MediaSniffer
@@ -24,6 +22,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Impedisce lo standby aggressivo durante lo streaming verso la TV
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         mediaSniffer = MediaSniffer()
         tvCastManager = TvCastManager(applicationContext)

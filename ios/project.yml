@@ -2,7 +2,6 @@ name: TVCastBrowser
 options:
   bundleIdPrefix: com.tvcast
   deploymentTarget:
-    iOS: "16.0"
     iOS: "15.0"
   xcodeVersion: "15.0"
 
@@ -10,7 +9,6 @@ targets:
   TVCastBrowser:
     type: application
     platform: iOS
-    deploymentTarget: "16.0"
     deploymentTarget: "15.0"
     sources:
       - path: TVCastBrowser
@@ -24,4 +22,3 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_IDENTITY: ""
-
