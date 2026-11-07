@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppCompat parent theme required for MediaRouteButton / Google Cast dialogs -->
+    <style name="Theme.TVCastBrowser" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>
+
