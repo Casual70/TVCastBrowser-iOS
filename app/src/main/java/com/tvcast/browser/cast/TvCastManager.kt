@@ -55,6 +55,8 @@ data class CastUiState(
     val activeMedia: DetectedMedia? = null,
     val activeStreamUrl: String? = null,
     val isPlaying: Boolean = false,
+    val currentPositionSeconds: Double = 0.0,
+    val durationSeconds: Double = 0.0,
     val useLocalProxy: Boolean = true,
     val localProxyEndpoint: String? = null,
     val bufferStats: ProxyBufferStats = ProxyBufferStats(),
@@ -590,6 +592,38 @@ class TvCastManager(
         }
     }
 
+    /**
+     * Sposta la riproduzione sulla TV a un secondo specifico (Seek manuale).
+     * Riavvia il timer di stabilità di 30 secondi del buffer senza perdere i segmenti già in RAM.
+     */
+    fun seekTo(positionSeconds: Double) {
+        val transportId = receiverTransportId ?: return
+        val sessionId = mediaSessionId ?: return
+        val duration = _uiState.value.durationSeconds
+        val targetPos = if (duration > 0) positionSeconds.coerceIn(0.0, duration) else positionSeconds.coerceAtLeast(0.0)
+
+        streamProxy.notifyManualSeek()
+        _uiState.update { it.copy(currentPositionSeconds = targetPos) }
+
+        scope.launch {
+            val payload = JSONObject()
+                .put("type", "SEEK")
+                .put("mediaSessionId", sessionId)
+                .put("currentTime", targetPos)
+                .put("requestId", requestIdCounter.getAndIncrement())
+            sendCastMessage(
+                namespace = NS_MEDIA,
+                destinationId = transportId,
+                payload = payload
+            )
+        }
+    }
+
+    fun seekRelative(deltaSeconds: Double) {
+        val current = _uiState.value.currentPositionSeconds
+        seekTo(current + deltaSeconds)
+    }
+
     fun stopCasting() {
         val transportId = receiverTransportId
         val sessionId = mediaSessionId
@@ -621,13 +655,36 @@ class TvCastManager(
     private fun startHeartbeatLoop() {
         heartbeatJob?.cancel()
         heartbeatJob = scope.launch {
+            var ticks = 0
             while (isActive && sslSocket?.isConnected == true) {
-                delay(4_500)
-                sendCastMessage(
-                    namespace = NS_HEARTBEAT,
-                    destinationId = "receiver-0",
-                    payload = JSONObject().put("type", "PING")
-                )
+                delay(1_000)
+                ticks++
+                if (_uiState.value.isPlaying) {
+                    _uiState.update { state ->
+                        val nextPos = state.currentPositionSeconds + 1.0
+                        val clamped = if (state.durationSeconds > 0) nextPos.coerceAtMost(state.durationSeconds) else nextPos
+                        state.copy(currentPositionSeconds = clamped)
+                    }
+                }
+                if (ticks % 4 == 0) {
+                    sendCastMessage(
+                        namespace = NS_HEARTBEAT,
+                        destinationId = "receiver-0",
+                        payload = JSONObject().put("type", "PING")
+                    )
+                }
+                if (ticks % 10 == 0) {
+                    val tId = receiverTransportId
+                    if (tId != null) {
+                        sendCastMessage(
+                            namespace = NS_MEDIA,
+                            destinationId = tId,
+                            payload = JSONObject()
+                                .put("type", "GET_STATUS")
+                                .put("requestId", requestIdCounter.getAndIncrement())
+                        )
+                    }
+                }
             }
         }
     }
@@ -735,10 +792,22 @@ class TvCastManager(
                         if (sessionId != -1) {
                             mediaSessionId = sessionId
                         }
+                        val currentTime = first.optDouble("currentTime", -1.0)
+                        val mediaObj = first.optJSONObject("media")
+                        val duration = mediaObj?.optDouble("duration", -1.0) ?: -1.0
                         val playerState = first.optString("playerState")
-                        if (playerState.isNotBlank()) {
-                            val playing = (playerState == "PLAYING" || playerState == "BUFFERING")
-                            _uiState.update { it.copy(isPlaying = playing) }
+
+                        _uiState.update { prev ->
+                            val playing = if (playerState.isNotBlank()) {
+                                (playerState == "PLAYING" || playerState == "BUFFERING")
+                            } else {
+                                prev.isPlaying
+                            }
+                            prev.copy(
+                                isPlaying = playing,
+                                currentPositionSeconds = if (currentTime >= 0.0) currentTime else prev.currentPositionSeconds,
+                                durationSeconds = if (duration > 0.0) duration else prev.durationSeconds
+                            )
                         }
                     }
                 }

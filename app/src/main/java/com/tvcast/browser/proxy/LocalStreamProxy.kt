@@ -22,36 +22,46 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URI
 import java.net.URL
-import java.util.Collections
 import java.util.LinkedHashMap
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
 
 data class ProxyBufferStats(
     val cachedSegmentsCount: Int = 0,
     val cachedBytes: Long = 0L,
+    val maxCacheBytes: Long = 100L * 1024L * 1024L,
     val activePrefetches: Int = 0,
+    val warmupRemainingSeconds: Int = 0,
+    val isBufferingUnlocked: Boolean = false,
     val totalRetries: Int = 0
 ) {
     val cachedMegabytes: String
         get() = String.format(java.util.Locale.US, "%.1f MB", cachedBytes / (1024.0 * 1024.0))
+
+    val maxMegabytes: String
+        get() = String.format(java.util.Locale.US, "%.0f MB", maxCacheBytes / (1024.0 * 1024.0))
 }
 
 /**
- * Server HTTP Proxy locale sullo smartphone con Motore di Pre-Buffering RAM (Read-Ahead Cache)
- * e Auto-Retry su errori di rete.
- *
- * Risolve le interruzioni di trasmissione durante lo streaming su Smart TV / Chromecast:
- * 1. Scarica i segmenti HLS (`.ts`, `.m4s`, init map, chiavi AES) interamente in RAM con fino a 3 tentativi
- *    automatici (backoff esponenziale) in caso di micro-cadute della linea o rallentamenti del CDN.
- *    In questo modo la Smart TV non riceve mai segmenti troncati (`ERR_CONTENT_LENGTH_MISMATCH`).
- * 2. Effettua il **Pre-Buffering Read-Ahead** dei successivi 6 segmenti video in background (fino a ~56 MB in RAM),
- *    servendoli alla TV istantaneamente a velocità LAN Wi-Fi (< 5 ms).
- * 3. Deduplica i download in corso (`inFlightSegments`): se la TV richiede un segmento che il pre-fetcher
- *    sta già scaricando, attende lo stesso download senza aprire connessioni duplicate.
+ * Server HTTP Proxy locale sullo smartphone con:
+ * 1. **Pre-Buffer RAM fino a 100 MB con Attivazione Intelligente dopo 30 secondi**:
+ *    - Quando inizia la riproduzione o l'utente avanza manualmente (seek) a un nuovo punto del video,
+ *      il proxy attende **30 secondi di riproduzione continua** prima di avviare l'immagazzinamento
+ *      massivo in RAM (così la scelta del punto video è istantanea e non spreca banda).
+ *    - Trascorsi 30 secondi sul punto scelto, il proxy riempie fino a **100 MB di buffer RAM**
+ *      scaricando in anticipo i segmenti successivi (sia video che audio separato).
+ *    - Se l'utente avanza manualmente verso un punto già presente nei 100 MB di buffer, il buffer
+ *      NON viene perso e viene servito istantaneamente dalla RAM.
+ * 2. **Protezione totale contro crash da Socket Abort (`SocketException`)**:
+ *    - Quando la TV chiude una connessione HTTP durante un seek, l'eccezione viene gestita
+ *      silenziosamente senza mai far crashare i thread del proxy.
  */
 class LocalStreamProxy(private val preferredPort: Int = 8765) {
 
@@ -65,20 +75,29 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     private class CachedSegment(
         val bytes: ByteArray,
         val contentType: String,
+        val playlistId: String?,
+        val segmentIndex: Int,
         val createdAt: Long = System.currentTimeMillis()
+    )
+
+    private data class SegmentMeta(
+        val playlistId: String,
+        val index: Int,
+        val sessionId: String
     )
 
     private val isRunning = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
     private val clientExecutor = Executors.newCachedThreadPool()
     private val prefetchExecutor = Executors.newFixedThreadPool(4)
+    private val warmupTimerExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
     private val sessions = ConcurrentHashMap<String, ProxySessionConfig>()
 
-    // Cache LRU in RAM dei segmenti video pre-scaricati (max ~56 MB o 45 segmenti)
+    // Cache LRU in RAM dei segmenti video/audio pre-scaricati (fino a 100 MB)
     private val cacheLock = Any()
     private var currentCacheBytes: Long = 0L
-    private val segmentCache = object : LinkedHashMap<String, CachedSegment>(64, 0.75f, true) {
+    private val segmentCache = object : LinkedHashMap<String, CachedSegment>(128, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSegment>?): Boolean {
             val shouldEvict = size > MAX_CACHED_SEGMENTS || currentCacheBytes > MAX_CACHE_BYTES
             if (shouldEvict && eldest != null) {
@@ -88,11 +107,18 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
         }
     }
 
-    // Download attualmente in corso (per evitare richieste duplicate tra TV e Pre-Fetcher)
+    // Download attualmente in corso (deduplicazione tra richiesta TV e Pre-Fetcher)
     private val inFlightSegments = ConcurrentHashMap<String, CompletableFuture<CachedSegment?>>()
 
-    // Mappa ogni segmento URL ai successivi N segmenti della stessa playlist per il Read-Ahead
-    private val nextSegmentsMap = ConcurrentHashMap<String, List<String>>()
+    // Metadati e sequenza segmenti per ciascuna sub-playlist (es. traccia video e traccia audio)
+    private val segmentMetaMap = ConcurrentHashMap<String, SegmentMeta>()
+    private val playlistSegmentsMap = ConcurrentHashMap<String, List<String>>()
+    private val lastIndexByPlaylist = ConcurrentHashMap<String, Int>()
+    private val lastActiveSegmentByPlaylist = ConcurrentHashMap<String, String>()
+
+    // Timestamp di inizio riproduzione sequenziale stabile (per la soglia dei 30 secondi)
+    private val sequentialStartTimeMs = AtomicLong(0L)
+    @Volatile private var activeSessionConfig: ProxySessionConfig? = null
 
     private val activePrefetchCount = AtomicInteger(0)
     private val totalRetriesCount = AtomicInteger(0)
@@ -102,6 +128,24 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
 
     var boundPort: Int = preferredPort
         private set
+
+    init {
+        // Aggiorna ogni secondo il countdown dei 30s e sblocca automaticamente il buffer a 30s
+        warmupTimerExecutor.scheduleAtFixedRate({
+            try {
+                val startMs = sequentialStartTimeMs.get()
+                if (startMs > 0L) {
+                    val elapsed = System.currentTimeMillis() - startMs
+                    updateStatsFlow()
+                    // Appena superati i 30 secondi di riproduzione stabile, avvia il riempimento dei 100 MB!
+                    if (elapsed in PREBUFFER_DELAY_MS..(PREBUFFER_DELAY_MS + 1500L)) {
+                        triggerAllActivePlaylistsPrefetch()
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+        }, 1, 1, TimeUnit.SECONDS)
+    }
 
     @Synchronized
     fun start() {
@@ -117,14 +161,20 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             isRunning.set(true)
 
             clientExecutor.execute {
-                Log.i(TAG, "LocalStreamProxy avviato sulla porta $boundPort (Pre-Buffer RAM attivo)")
+                Log.i(TAG, "LocalStreamProxy avviato sulla porta $boundPort (Buffer 100MB dopo 30s)")
                 while (isRunning.get()) {
                     try {
                         val client = socket.accept()
-                        clientExecutor.execute { handleClient(client) }
-                    } catch (e: Exception) {
+                        clientExecutor.execute {
+                            try {
+                                handleClient(client)
+                            } catch (t: Throwable) {
+                                // Ignora SocketException quando la TV chiude una connessione durante un seek
+                            }
+                        }
+                    } catch (t: Throwable) {
                         if (isRunning.get()) {
-                            Log.w(TAG, "Errore accept client proxy: ${e.message}")
+                            Log.w(TAG, "Errore accept client proxy: ${t.message}")
                         }
                     }
                 }
@@ -139,7 +189,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
         isRunning.set(false)
         try {
             serverSocket?.close()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         serverSocket = null
         clearBufferCache()
@@ -152,29 +202,53 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             currentCacheBytes = 0L
         }
         inFlightSegments.clear()
-        nextSegmentsMap.clear()
+        segmentMetaMap.clear()
+        playlistSegmentsMap.clear()
+        lastIndexByPlaylist.clear()
+        lastActiveSegmentByPlaylist.clear()
+        sequentialStartTimeMs.set(0L)
+        updateStatsFlow()
+    }
+
+    /**
+     * Chiamato quando l'utente effettua un seek manuale dalla barra di controllo dell'app:
+     * mantiene i segmenti già presenti in cache (nel caso il seek cada dentro i 100 MB già scaricati)
+     * e riavvia il timer di stabilità di 30 secondi se la nuova posizione è fuori buffer.
+     */
+    fun notifyManualSeek() {
+        sequentialStartTimeMs.set(System.currentTimeMillis())
         updateStatsFlow()
     }
 
     fun createProxiedUrl(media: DetectedMedia): String {
         start()
-        clearBufferCache()
+        val sessionId = Integer.toHexString(media.url.hashCode())
+        // Svuota il buffer solo se stiamo cambiando film/video
+        if (!sessions.containsKey(sessionId)) {
+            clearBufferCache()
+        }
+
         val lanIp = findLocalLanIpAddress() ?: return media.url
 
-        val sessionId = Integer.toHexString(media.url.hashCode())
         val cookieHeader = try {
             CookieManager.getInstance().getCookie(media.url)
                 ?: media.pageUrl.takeIf { it.isNotBlank() }?.let { CookieManager.getInstance().getCookie(it) }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
 
-        sessions[sessionId] = ProxySessionConfig(
+        val config = ProxySessionConfig(
             rootUrl = media.url,
             pageUrl = media.pageUrl,
             headers = media.headers,
             cookies = cookieHeader
         )
+        sessions[sessionId] = config
+        activeSessionConfig = config
+
+        if (sequentialStartTimeMs.get() == 0L) {
+            sequentialStartTimeMs.set(System.currentTimeMillis())
+        }
 
         val encodedTarget = encodeUrl(media.url)
         val extHint = when (media.format) {
@@ -216,100 +290,156 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     }
 
     private fun handleClient(socket: Socket) {
-        socket.use { client ->
-            client.soTimeout = 45_000
-            client.keepAlive = true
-            client.tcpNoDelay = true
-            client.sendBufferSize = 256 * 1024
+        try {
+            socket.use { client ->
+                client.soTimeout = 45_000
+                client.keepAlive = true
+                client.tcpNoDelay = true
+                client.sendBufferSize = 256 * 1024
 
-            val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
-            val rawOutput = BufferedOutputStream(client.getOutputStream(), 64 * 1024)
+                val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
+                val rawOutput = BufferedOutputStream(client.getOutputStream(), 64 * 1024)
 
-            val requestLine = reader.readLine() ?: return
-            val parts = requestLine.split(" ")
-            if (parts.size < 2) return
+                val requestLine = try {
+                    reader.readLine()
+                } catch (_: Throwable) {
+                    null
+                } ?: return
 
-            val method = parts[0].uppercase()
-            val pathAndQuery = parts[1]
+                val parts = requestLine.split(" ")
+                if (parts.size < 2) return
 
-            val clientHeaders = mutableMapOf<String, String>()
-            var line = reader.readLine()
-            while (!line.isNullOrEmpty()) {
-                val idx = line.indexOf(':')
-                if (idx > 0) {
-                    val key = line.substring(0, idx).trim()
-                    val value = line.substring(idx + 1).trim()
-                    clientHeaders[key] = value
+                val method = parts[0].uppercase()
+                val pathAndQuery = parts[1]
+
+                val clientHeaders = mutableMapOf<String, String>()
+                while (true) {
+                    val line = try {
+                        reader.readLine()
+                    } catch (_: Throwable) {
+                        break
+                    }
+                    if (line.isNullOrEmpty()) break
+                    val idx = line.indexOf(':')
+                    if (idx > 0) {
+                        val key = line.substring(0, idx).trim()
+                        val value = line.substring(idx + 1).trim()
+                        clientHeaders[key] = value
+                    }
                 }
-                line = reader.readLine()
-            }
 
-            if (method == "OPTIONS") {
-                writeCorsPreflight(rawOutput)
-                return
-            }
+                if (method == "OPTIONS") {
+                    writeCorsPreflight(rawOutput)
+                    return
+                }
 
-            val pathPart = pathAndQuery.substringBefore("?")
-            val query = pathAndQuery.substringAfter("?", "")
-            val params = parseQueryParams(query)
-            val sessionId = params["s"]
-            val encodedUrl = params["u"]
+                val pathPart = pathAndQuery.substringBefore("?")
+                val query = pathAndQuery.substringAfter("?", "")
+                val params = parseQueryParams(query)
+                val sessionId = params["s"]
+                val encodedUrl = params["u"]
 
-            if (encodedUrl.isNullOrBlank()) {
-                writeError(rawOutput, 400, "Missing 'u' parameter")
-                return
-            }
+                if (encodedUrl.isNullOrBlank()) {
+                    writeError(rawOutput, 400, "Missing 'u' parameter")
+                    return
+                }
 
-            val targetUrl = try {
-                decodeUrl(encodedUrl)
-            } catch (e: Exception) {
-                writeError(rawOutput, 400, "Invalid 'u' parameter")
-                return
-            }
+                val targetUrl = try {
+                    decodeUrl(encodedUrl)
+                } catch (e: Exception) {
+                    writeError(rawOutput, 400, "Invalid 'u' parameter")
+                    return
+                }
 
-            val sessionConfig = sessionId?.let { sessions[it] }
-            val hostHeader = clientHeaders.entries.firstOrNull { it.key.equals("Host", ignoreCase = true) }?.value
-                ?: "${findLocalLanIpAddress() ?: "127.0.0.1"}:$boundPort"
-            val rangeHeader = clientHeaders.entries.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+                val sessionConfig = sessionId?.let { sessions[it] } ?: activeSessionConfig
+                if (sessionConfig != null) {
+                    activeSessionConfig = sessionConfig
+                }
+                val hostHeader = clientHeaders.entries.firstOrNull { it.key.equals("Host", ignoreCase = true) }?.value
+                    ?: "${findLocalLanIpAddress() ?: "127.0.0.1"}:$boundPort"
+                val rangeHeader = clientHeaders.entries.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
 
-            val isSegmentRequest = pathPart.endsWith("seg.ts") || pathPart.endsWith("seg.m4s")
+                val isSegmentRequest = pathPart.endsWith("seg.ts") || pathPart.endsWith("seg.m4s")
 
-            // Se è un segmento HLS (.ts / .m4s) senza Range parziale, servilo dal Pre-Buffer RAM
-            // e avvia il pre-fetching dei successivi 6 segmenti!
-            if (isSegmentRequest && method == "GET" && rangeHeader.isNullOrBlank()) {
-                serveBufferedSegment(
+                if (isSegmentRequest && (method == "GET" || method == "HEAD")) {
+                    serveBufferedSegment(
+                        method = method,
+                        targetUrl = targetUrl,
+                        sessionConfig = sessionConfig,
+                        rangeHeader = rangeHeader,
+                        output = rawOutput
+                    )
+                    return
+                }
+
+                proxyUpstreamRequest(
+                    method = method,
                     targetUrl = targetUrl,
+                    sessionId = sessionId ?: "default",
                     sessionConfig = sessionConfig,
+                    clientRangeHeader = rangeHeader,
+                    proxyHostPort = hostHeader,
                     output = rawOutput
                 )
-                return
             }
-
-            proxyUpstreamRequest(
-                method = method,
-                targetUrl = targetUrl,
-                sessionId = sessionId ?: "default",
-                sessionConfig = sessionConfig,
-                clientRangeHeader = rangeHeader,
-                proxyHostPort = hostHeader,
-                output = rawOutput
-            )
+        } catch (_: Throwable) {
+            // Connessione chiusa o annullata dalla Smart TV (es. durante il seek): normale, non propagare
         }
     }
 
     /**
-     * Serve un segmento HLS dalla cache RAM (o attende il download con auto-retry)
-     * e avvia in parallelo il pre-fetching dei successivi 6 segmenti della playlist.
+     * Gestisce la richiesta di un segmento HLS (`.ts` / `.m4s`):
+     * - Controlla se l'utente ha effettuato un salto/seek fuori finestra o se la riproduzione
+     *   è stabile da almeno 30 secondi.
+     * - Se il segmento è già nei 100 MB di RAM, lo serve istantaneamente (anche con Range header!).
+     * - Se la riproduzione è stabile da >= 30 secondi, avvia il pre-fetching fino a 100 MB.
      */
     private fun serveBufferedSegment(
+        method: String,
         targetUrl: String,
         sessionConfig: ProxySessionConfig?,
+        rangeHeader: String?,
         output: OutputStream
     ) {
-        // 1. Avvia subito il pre-fetch dei prossimi segmenti in background
-        triggerReadAheadPrefetch(targetUrl, sessionConfig)
+        val alreadyInRam = synchronized(cacheLock) { segmentCache.containsKey(targetUrl) }
+        val meta = segmentMetaMap[targetUrl]
 
-        // 2. Recupera il segmento corrente dalla RAM o scaricalo con retry
+        if (meta != null) {
+            val prevIndex = lastIndexByPlaylist.put(meta.playlistId, meta.index)
+            lastActiveSegmentByPlaylist[meta.playlistId] = targetUrl
+
+            // Rileva se l'utente ha spostato manualmente il punto di riproduzione (seek fuori dal buffer)
+            if (prevIndex == null) {
+                if (sequentialStartTimeMs.get() == 0L) {
+                    sequentialStartTimeMs.set(System.currentTimeMillis())
+                }
+            } else if (abs(meta.index - prevIndex) > 4 && !alreadyInRam) {
+                // L'utente è saltato a un nuovo punto del video non ancora in buffer:
+                // riavvia il timer di 30 secondi e libera i vecchi segmenti precedenti al nuovo punto
+                Log.i(TAG, "Rilevato salto/seek manuale (segmento $prevIndex -> ${meta.index}): attendo 30s di stabilità")
+                sequentialStartTimeMs.set(System.currentTimeMillis())
+                evictSegmentsBefore(meta.playlistId, meta.index - 1)
+            } else {
+                // Riproduzione sequenziale normale: libera i segmenti già riprodotti (più vecchi di 2 posizioni)
+                // così tutti i 100 MB sono dedicati al video futuro!
+                evictSegmentsBefore(meta.playlistId, meta.index - 2)
+            }
+        }
+
+        // Controlla se sono passati 30 secondi di riproduzione normale
+        val startMs = sequentialStartTimeMs.get()
+        val elapsedMs = if (startMs > 0L) System.currentTimeMillis() - startMs else 0L
+        val isBufferingUnlocked = elapsedMs >= PREBUFFER_DELAY_MS
+
+        if (isBufferingUnlocked) {
+            // Riproduzione stabile da >= 30s: pre-carica fino a READ_AHEAD_SEGMENTS (fino a 100 MB)!
+            triggerReadAheadForSegment(targetUrl, sessionConfig, maxCount = READ_AHEAD_SEGMENTS)
+        } else {
+            // Primi 30s (fase scelta punto video): pre-carica solo 1 segmento successivo per fluidità immediata
+            triggerReadAheadForSegment(targetUrl, sessionConfig, maxCount = 1)
+        }
+        updateStatsFlow()
+
         val segment = getOrFetchSegment(targetUrl, sessionConfig)
         if (segment == null) {
             writeError(output, 502, "Segment fetch failed after retries")
@@ -317,20 +447,114 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
         }
 
         try {
-            val headers = buildString {
-                append("HTTP/1.1 200 OK\r\n")
-                append("Content-Type: ${segment.contentType}\r\n")
-                append("Content-Length: ${segment.bytes.size}\r\n")
-                append("Accept-Ranges: bytes\r\n")
-                append("Cache-Control: public, max-age=3600\r\n")
-                appendCorsHeaders()
-                append("\r\n")
+            val totalLen = segment.bytes.size
+            if (!rangeHeader.isNullOrBlank() && rangeHeader.startsWith("bytes=")) {
+                val rangeSpec = rangeHeader.removePrefix("bytes=").substringBefore(",")
+                val startStr = rangeSpec.substringBefore("-")
+                val endStr = rangeSpec.substringAfter("-", "")
+                val start = startStr.toIntOrNull()?.coerceIn(0, (totalLen - 1).coerceAtLeast(0)) ?: 0
+                val end = endStr.takeIf { it.isNotBlank() }?.toIntOrNull()?.coerceIn(start, totalLen - 1) ?: (totalLen - 1)
+                val sliceLen = (end - start + 1).coerceAtLeast(0)
+
+                val headers = buildString {
+                    append("HTTP/1.1 206 Partial Content\r\n")
+                    append("Content-Type: ${segment.contentType}\r\n")
+                    append("Content-Length: $sliceLen\r\n")
+                    append("Content-Range: bytes $start-$end/$totalLen\r\n")
+                    append("Accept-Ranges: bytes\r\n")
+                    appendCorsHeaders()
+                    append("\r\n")
+                }
+                output.write(headers.toByteArray(Charsets.UTF_8))
+                if (method != "HEAD" && sliceLen > 0) {
+                    output.write(segment.bytes, start, sliceLen)
+                }
+                output.flush()
+            } else {
+                val headers = buildString {
+                    append("HTTP/1.1 200 OK\r\n")
+                    append("Content-Type: ${segment.contentType}\r\n")
+                    append("Content-Length: $totalLen\r\n")
+                    append("Accept-Ranges: bytes\r\n")
+                    append("Cache-Control: public, max-age=3600\r\n")
+                    appendCorsHeaders()
+                    append("\r\n")
+                }
+                output.write(headers.toByteArray(Charsets.UTF_8))
+                if (method != "HEAD") {
+                    output.write(segment.bytes)
+                }
+                output.flush()
             }
-            output.write(headers.toByteArray(Charsets.UTF_8))
-            output.write(segment.bytes)
-            output.flush()
-        } catch (e: Exception) {
-            Log.w(TAG, "Errore invio segmento bufferizzato alla TV: ${e.message}")
+        } catch (_: Throwable) {
+            // Il client TV ha chiuso lo stream
+        }
+    }
+
+    private fun evictSegmentsBefore(playlistId: String, minIndexToKeep: Int) {
+        if (minIndexToKeep <= 0) return
+        synchronized(cacheLock) {
+            val iterator = segmentCache.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                val seg = entry.value
+                if (seg.playlistId == playlistId && seg.segmentIndex in 0 until minIndexToKeep) {
+                    currentCacheBytes = (currentCacheBytes - seg.bytes.size).coerceAtLeast(0L)
+                    iterator.remove()
+                }
+            }
+        }
+    }
+
+    private fun triggerAllActivePlaylistsPrefetch() {
+        val config = activeSessionConfig ?: return
+        for ((_, activeSegUrl) in lastActiveSegmentByPlaylist) {
+            triggerReadAheadForSegment(activeSegUrl, config, maxCount = READ_AHEAD_SEGMENTS)
+        }
+    }
+
+    private fun triggerReadAheadForSegment(
+        currentSegmentUrl: String,
+        sessionConfig: ProxySessionConfig?,
+        maxCount: Int
+    ) {
+        val meta = segmentMetaMap[currentSegmentUrl] ?: return
+        val list = playlistSegmentsMap[meta.playlistId] ?: return
+        val startIdx = meta.index + 1
+        if (startIdx >= list.size) return
+        val endIdx = (startIdx + maxCount).coerceAtMost(list.size)
+        val upcoming = list.subList(startIdx, endIdx)
+        prefetchSegmentsList(upcoming, sessionConfig)
+    }
+
+    private fun prefetchSegmentsList(
+        urls: List<String>,
+        sessionConfig: ProxySessionConfig?
+    ) {
+        for (nextUrl in urls) {
+            val canSchedule = synchronized(cacheLock) {
+                !segmentCache.containsKey(nextUrl) && currentCacheBytes < MAX_CACHE_BYTES
+            }
+            if (!canSchedule || inFlightSegments.containsKey(nextUrl)) continue
+
+            prefetchExecutor.execute {
+                try {
+                    val shouldDownload = synchronized(cacheLock) {
+                        !segmentCache.containsKey(nextUrl) && currentCacheBytes < MAX_CACHE_BYTES
+                    }
+                    if (!shouldDownload || inFlightSegments.containsKey(nextUrl)) return@execute
+
+                    activePrefetchCount.incrementAndGet()
+                    updateStatsFlow()
+                    try {
+                        getOrFetchSegment(nextUrl, sessionConfig)
+                    } finally {
+                        activePrefetchCount.decrementAndGet()
+                        updateStatsFlow()
+                    }
+                } catch (_: Throwable) {
+                }
+            }
         }
     }
 
@@ -356,7 +580,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                 }
                 future.complete(downloaded)
                 return downloaded
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 future.complete(null)
                 return null
             } finally {
@@ -364,54 +588,19 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             }
         } else {
             return try {
-                future.get()
-            } catch (_: Exception) {
+                future.get(25, TimeUnit.SECONDS)
+            } catch (_: Throwable) {
                 null
             }
         }
     }
 
-    private fun triggerReadAheadPrefetch(
-        currentSegmentUrl: String,
-        sessionConfig: ProxySessionConfig?
-    ) {
-        val upcoming = nextSegmentsMap[currentSegmentUrl] ?: return
-        prefetchSegmentsList(upcoming, sessionConfig)
-    }
-
-    private fun prefetchSegmentsList(
-        urls: List<String>,
-        sessionConfig: ProxySessionConfig?
-    ) {
-        for (nextUrl in urls) {
-            val alreadyCached = synchronized(cacheLock) { segmentCache.containsKey(nextUrl) }
-            if (alreadyCached || inFlightSegments.containsKey(nextUrl)) continue
-
-            prefetchExecutor.execute {
-                val cachedNow = synchronized(cacheLock) { segmentCache.containsKey(nextUrl) }
-                if (cachedNow || inFlightSegments.containsKey(nextUrl)) return@execute
-
-                activePrefetchCount.incrementAndGet()
-                updateStatsFlow()
-                try {
-                    getOrFetchSegment(nextUrl, sessionConfig)
-                } finally {
-                    activePrefetchCount.decrementAndGet()
-                    updateStatsFlow()
-                }
-            }
-        }
-    }
-
-    /**
-     * Scarica un singolo segmento completo in RAM con massimo [maxAttempts] tentativi
-     * per assorbire micro-interruzioni Wi-Fi/Internet o errori temporanei del server CDN.
-     */
     private fun downloadSegmentWithRetry(
         targetUrl: String,
         sessionConfig: ProxySessionConfig?,
         maxAttempts: Int = 3
     ): CachedSegment? {
+        val meta = segmentMetaMap[targetUrl]
         var attempt = 1
         while (attempt <= maxAttempts) {
             var connection: HttpURLConnection? = null
@@ -439,21 +628,27 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                         }
                     }
                     val bytes = bos.toByteArray()
-                    // Verifica che il segmento non sia stato troncato a metà dal server remoto
                     if (expectedLength > 0 && bytes.size.toLong() != expectedLength) {
-                        throw java.io.IOException("Segmento incompleto: ricevuti ${bytes.size} su $expectedLength byte")
+                        throw java.io.IOException("Segmento troncato: ${bytes.size} / $expectedLength byte")
                     }
                     if (bytes.isNotEmpty()) {
-                        return CachedSegment(bytes = bytes, contentType = contentType)
+                        return CachedSegment(
+                            bytes = bytes,
+                            contentType = contentType,
+                            playlistId = meta?.playlistId,
+                            segmentIndex = meta?.index ?: -1
+                        )
                     }
                 } else if (code in 400..499 && code != 429 && code != 408) {
-                    // Errore client definitivo (es. 404/403), inutile riprovare
                     return null
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Tentativo $attempt/$maxAttempts fallito per segmento: ${e.message}")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Retry $attempt/$maxAttempts segmento: ${t.message}")
             } finally {
-                connection?.disconnect()
+                try {
+                    connection?.disconnect()
+                } catch (_: Throwable) {
+                }
             }
 
             attempt++
@@ -475,7 +670,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
         synchronized(cacheLock) {
             val previous = segmentCache.put(url, segment)
             if (previous != null) {
-                currentCacheBytes -= previous.bytes.size
+                currentCacheBytes = (currentCacheBytes - previous.bytes.size).coerceAtLeast(0L)
             }
             currentCacheBytes += segment.bytes.size
             while (currentCacheBytes > MAX_CACHE_BYTES && segmentCache.isNotEmpty()) {
@@ -496,10 +691,22 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             count = segmentCache.size
             bytes = currentCacheBytes
         }
+        val startMs = sequentialStartTimeMs.get()
+        val elapsedMs = if (startMs > 0L) System.currentTimeMillis() - startMs else 0L
+        val remainingSec = if (startMs > 0L && elapsedMs < PREBUFFER_DELAY_MS) {
+            ((PREBUFFER_DELAY_MS - elapsedMs + 999L) / 1000L).toInt().coerceIn(0, 30)
+        } else {
+            0
+        }
+        val unlocked = startMs > 0L && elapsedMs >= PREBUFFER_DELAY_MS
+
         _bufferStats.value = ProxyBufferStats(
             cachedSegmentsCount = count,
             cachedBytes = bytes,
+            maxCacheBytes = MAX_CACHE_BYTES,
             activePrefetches = activePrefetchCount.get(),
+            warmupRemainingSeconds = remainingSec,
+            isBufferingUnlocked = unlocked,
             totalRetries = totalRetriesCount.get()
         )
     }
@@ -549,8 +756,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                     playlist = playlistText,
                     baseUrl = finalUpstreamUrl,
                     proxyHostPort = proxyHostPort,
-                    sessionId = sessionId,
-                    sessionConfig = sessionConfig
+                    sessionId = sessionId
                 )
                 val payloadBytes = rewrittenPlaylist.toByteArray(Charsets.UTF_8)
 
@@ -600,10 +806,13 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                     output.flush()
                 }
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Connessione interrotta durante streaming di $targetUrl: ${e.message}")
+        } catch (_: Throwable) {
+            // Normale quando la TV chiude uno stream HTTP durante un seek
         } finally {
-            connection?.disconnect()
+            try {
+                connection?.disconnect()
+            } catch (_: Throwable) {
+            }
         }
     }
 
@@ -686,7 +895,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
 
             val liveCookie = try {
                 CookieManager.getInstance().getCookie(currentUrl)
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 null
             } ?: sessionConfig?.cookies
 
@@ -713,19 +922,20 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     }
 
     /**
-     * Riscrive un manifest `.m3u8` e registra la catena sequenziale dei segmenti
-     * per attivare il Pre-Buffering Read-Ahead automatico in RAM.
+     * Riscrive un manifest `.m3u8` e indicizza tutti i segmenti della sub-playlist
+     * per gestire sia il seek manuale sia il Pre-Buffer fino a 100 MB.
      */
     internal fun rewriteM3u8Playlist(
         playlist: String,
         baseUrl: String,
         proxyHostPort: String,
-        sessionId: String,
-        sessionConfig: ProxySessionConfig? = null
+        sessionId: String
     ): String {
         val uriAttrRegex = Regex("""URI="([^"]+)"""")
         var expectSubPlaylist = false
+        var expectMediaSegment = false
         val discoveredSegments = mutableListOf<String>()
+        val playlistId = Integer.toHexString(baseUrl.hashCode())
 
         val rewritten = playlist.lineSequence().joinToString("\n") { rawLine ->
             val line = rawLine.trim()
@@ -734,11 +944,14 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                 line.startsWith("#") -> {
                     if (line.startsWith("#EXT-X-STREAM-INF")) {
                         expectSubPlaylist = true
+                        expectMediaSegment = false
                     } else if (line.startsWith("#EXTINF")) {
                         expectSubPlaylist = false
+                        expectMediaSegment = true
                     }
                     if (line.contains("URI=\"")) {
                         val isMediaPlaylistTag = line.startsWith("#EXT-X-MEDIA") || line.startsWith("#EXT-X-I-FRAME-STREAM-INF")
+                        val isInitMapTag = line.startsWith("#EXT-X-MAP")
                         uriAttrRegex.replace(line) { match ->
                             val originalUri = match.groupValues[1]
                             val absoluteUri = resolveRelativeUrl(baseUrl, originalUri)
@@ -746,7 +959,8 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                                 proxyHostPort = proxyHostPort,
                                 sessionId = sessionId,
                                 absoluteTargetUrl = absoluteUri,
-                                forcePlaylistHint = isMediaPlaylistTag
+                                forcePlaylistHint = isMediaPlaylistTag,
+                                forceSegmentHint = isInitMapTag
                             )
                             """URI="$proxiedUri""""
                         }
@@ -756,46 +970,52 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                 }
                 else -> {
                     val absoluteUri = resolveRelativeUrl(baseUrl, line)
-                    val isSubPlaylist = expectSubPlaylist ||
-                        absoluteUri.substringBefore("?").lowercase().let { it.endsWith(".m3u8") || it.contains("/playlist/") }
-                    if (!isSubPlaylist) {
+                    val isSegment = expectMediaSegment || (!expectSubPlaylist && !isLikelyPlaylistUrl(absoluteUri))
+                    if (isSegment) {
+                        val idx = discoveredSegments.size
                         discoveredSegments.add(absoluteUri)
+                        segmentMetaMap[absoluteUri] = SegmentMeta(
+                            playlistId = playlistId,
+                            index = idx,
+                            sessionId = sessionId
+                        )
                     }
                     val result = buildProxyItemUrl(
                         proxyHostPort = proxyHostPort,
                         sessionId = sessionId,
                         absoluteTargetUrl = absoluteUri,
-                        forcePlaylistHint = expectSubPlaylist
+                        forcePlaylistHint = expectSubPlaylist && !expectMediaSegment,
+                        forceSegmentHint = isSegment
                     )
                     expectSubPlaylist = false
+                    expectMediaSegment = false
                     result
                 }
             }
         }
 
-        // Costruisci la mappa di Read-Ahead (per ogni segmento i -> salva i successivi READ_AHEAD_SEGMENTS)
         if (discoveredSegments.isNotEmpty()) {
-            for (i in discoveredSegments.indices) {
-                val endIdx = (i + 1 + READ_AHEAD_SEGMENTS).coerceAtMost(discoveredSegments.size)
-                if (i + 1 < endIdx) {
-                    nextSegmentsMap[discoveredSegments[i]] = discoveredSegments.subList(i + 1, endIdx).toList()
-                }
-            }
-            // Pre-carica subito i primi 3 segmenti della playlist così l'avvio sulla TV è istantaneo
-            prefetchSegmentsList(discoveredSegments.take(3), sessionConfig)
+            playlistSegmentsMap[playlistId] = discoveredSegments.toList()
         }
 
         return rewritten
+    }
+
+    private fun isLikelyPlaylistUrl(url: String): Boolean {
+        val clean = url.substringBefore("?").lowercase()
+        return clean.endsWith(".m3u8") || clean.contains("/playlist/")
     }
 
     private fun buildProxyItemUrl(
         proxyHostPort: String,
         sessionId: String,
         absoluteTargetUrl: String,
-        forcePlaylistHint: Boolean = false
+        forcePlaylistHint: Boolean = false,
+        forceSegmentHint: Boolean = false
     ): String {
         val cleanPath = absoluteTargetUrl.substringBefore("?").lowercase()
         val extHint = when {
+            forceSegmentHint -> if (cleanPath.endsWith(".m4s")) "seg.m4s" else "seg.ts"
             forcePlaylistHint || cleanPath.endsWith(".m3u8") || cleanPath.contains("/playlist/") -> "sub.m3u8"
             cleanPath.endsWith(".m4s") -> "seg.m4s"
             else -> "seg.ts"
@@ -815,7 +1035,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             } else {
                 false
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             false
         }
     }
@@ -909,9 +1129,10 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
 
     companion object {
         private const val TAG = "LocalStreamProxy"
-        private const val READ_AHEAD_SEGMENTS = 6
-        private const val MAX_CACHED_SEGMENTS = 45
-        private const val MAX_CACHE_BYTES = 56L * 1024L * 1024L // 56 MB RAM buffer
-        private const val MAX_SINGLE_SEGMENT_BYTES = 12 * 1024 * 1024 // 12 MB
+        private const val PREBUFFER_DELAY_MS = 30_000L // Attende 30s di riproduzione stabile prima del buffer massivo
+        private const val READ_AHEAD_SEGMENTS = 18     // Pre-carica fino a 18 segmenti in avanti
+        private const val MAX_CACHED_SEGMENTS = 110
+        private const val MAX_CACHE_BYTES = 100L * 1024L * 1024L // 100 MB di Buffer RAM
+        private const val MAX_SINGLE_SEGMENT_BYTES = 16 * 1024 * 1024 // 16 MB max per singolo segmento
     }
 }

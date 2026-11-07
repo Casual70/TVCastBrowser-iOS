@@ -83,7 +83,7 @@ fun BrowserCastScreen(
             }
             "v${pInfo.versionName} (#$vCode)"
         } catch (_: Exception) {
-            "v1.1.0 (#2)"
+            "v1.2.0 (#3)"
         }
     }
     val focusManager = LocalFocusManager.current
@@ -413,6 +413,10 @@ fun BrowserCastScreen(
                     mediaTitle = castState.activeMedia?.title ?: (castState.statusMessage ?: "Pronto per trasmettere"),
                     bufferStats = castState.bufferStats,
                     isPlaying = castState.isPlaying,
+                    currentPositionSeconds = castState.currentPositionSeconds,
+                    durationSeconds = castState.durationSeconds,
+                    onSeekTo = { castManager.seekTo(it) },
+                    onSeekRelative = { castManager.seekRelative(it) },
                     onPlayPause = { castManager.togglePlayPause() },
                     onStop = { castManager.stopCasting() }
                 )
@@ -1171,10 +1175,13 @@ private fun DetectedMediaSheetContent(
                     )
                     Text(
                         text = if (useLocalProxy) {
-                            val bufInfo = if (bufferStats.cachedSegmentsCount > 0) {
-                                " • Buffer: ${bufferStats.cachedSegmentsCount} seg (${bufferStats.cachedMegabytes})"
-                            } else {
-                                " • Pre-buffer 6 segmenti attivo"
+                            val bufInfo = when {
+                                bufferStats.warmupRemainingSeconds > 0 ->
+                                    " • Stabilità punto: buffer 100MB tra ${bufferStats.warmupRemainingSeconds}s"
+                                bufferStats.cachedSegmentsCount > 0 ->
+                                    " • Buffer RAM: ${bufferStats.cachedMegabytes} / ${bufferStats.maxMegabytes} (${bufferStats.cachedSegmentsCount} seg)"
+                                else ->
+                                    " • Buffer fino a 100 MB (parte dopo 30s)"
                             }
                             (localProxyEndpoint ?: "Wi-Fi") + bufInfo
                         } else {
@@ -1258,63 +1265,153 @@ private fun DetectedMediaSheetContent(
     }
 }
 
+private fun formatTimeSeconds(sec: Double): String {
+    if (sec <= 0.0 || sec.isNaN()) return "00:00"
+    val totalSec = sec.toLong()
+    val hours = totalSec / 3600
+    val minutes = (totalSec % 3600) / 60
+    val seconds = totalSec % 60
+    return if (hours > 0) {
+        String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+    }
+}
+
 @Composable
 private fun RemoteControlBar(
     deviceName: String,
     mediaTitle: String,
     bufferStats: ProxyBufferStats,
     isPlaying: Boolean,
+    currentPositionSeconds: Double,
+    durationSeconds: Double,
+    onSeekTo: (Double) -> Unit,
+    onSeekRelative: (Double) -> Unit,
     onPlayPause: () -> Unit,
     onStop: () -> Unit
 ) {
+    var sliderDragging by remember { mutableStateOf(false) }
+    var sliderValue by remember { mutableFloatStateOf(0f) }
+
+    val effectivePos = if (sliderDragging) sliderValue.toDouble() else currentPositionSeconds
+
     Surface(
         tonalElevation = 8.dp,
         color = MaterialTheme.colorScheme.secondaryContainer
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Tv,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                val bufferLabel = if (bufferStats.cachedSegmentsCount > 0) {
-                    " • Buffer RAM: ${bufferStats.cachedSegmentsCount} seg (${bufferStats.cachedMegabytes})"
-                } else {
-                    ""
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Tv,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    val bufferLabel = when {
+                        bufferStats.warmupRemainingSeconds > 0 ->
+                            " • Attesa punto video: buffer 100MB tra ${bufferStats.warmupRemainingSeconds}s"
+                        bufferStats.cachedSegmentsCount > 0 ->
+                            " • Buffer RAM: ${bufferStats.cachedMegabytes} / ${bufferStats.maxMegabytes} (${bufferStats.cachedSegmentsCount} seg)"
+                        bufferStats.isBufferingUnlocked ->
+                            " • Buffer 100MB attivo"
+                        else -> ""
+                    }
+                    Text(
+                        text = "$deviceName$bufferLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = mediaTitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Text(
-                    text = "$deviceName$bufferLabel",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = mediaTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                // Pulsanti rapidi Seek -30s / Play-Pausa / +30s / +5m / Stop
+                TextButton(
+                    onClick = { onSeekRelative(-30.0) },
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("-30s", style = MaterialTheme.typography.labelSmall)
+                }
+                IconButton(onClick = onPlayPause, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pausa"
+                    )
+                }
+                TextButton(
+                    onClick = { onSeekRelative(30.0) },
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("+30s", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(
+                    onClick = { onSeekRelative(300.0) },
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("+5m", style = MaterialTheme.typography.labelSmall)
+                }
+                IconButton(onClick = onStop, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = "Stop"
+                    )
+                }
             }
-            IconButton(onClick = onPlayPause) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "Play/Pausa"
-                )
-            }
-            IconButton(onClick = onStop) {
-                Icon(
-                    imageVector = Icons.Default.Stop,
-                    contentDescription = "Stop"
-                )
+
+            // Barra di avanzamento (Seek Slider) se la durata del video è nota
+            if (durationSeconds > 1.0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatTimeSeconds(effectivePos),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Slider(
+                        value = effectivePos.toFloat().coerceIn(0f, durationSeconds.toFloat()),
+                        onValueChange = {
+                            sliderDragging = true
+                            sliderValue = it
+                        },
+                        onValueChangeFinished = {
+                            val target = sliderValue.toDouble()
+                            sliderDragging = false
+                            onSeekTo(target)
+                        },
+                        valueRange = 0f..durationSeconds.toFloat(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(24.dp)
+                            .padding(horizontal = 8.dp)
+                    )
+                    Text(
+                        text = formatTimeSeconds(durationSeconds),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
             }
         }
     }
