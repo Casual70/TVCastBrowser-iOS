@@ -419,6 +419,13 @@ struct BrowserCastView: View {
                     }
                 }
                 Spacer()
+                Text("v1.1.0 (#2)")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.18))
+                    .foregroundColor(.accentColor)
+                    .clipShape(Capsule())
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
