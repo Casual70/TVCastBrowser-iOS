@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import com.tvcast.browser.model.DetectedMedia
+import com.tvcast.browser.model.StreamFormat
 import com.tvcast.browser.proxy.LocalStreamProxy
 import com.tvcast.browser.proxy.ProxyBufferStats
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -64,17 +67,19 @@ data class CastUiState(
 )
 
 /**
- * Gestore 100% Open Source (FOSS) del protocollo Google Cast (CASTv2 su TLS porta 8009)
- * con:
- * - Pre-Buffering RAM dei segmenti HLS tramite [LocalStreamProxy]
- * - Blocco risparmio energetico Wi-Fi (`WifiLock` Low-Latency/High-Perf) e CPU (`PartialWakeLock`)
- * - Riconnessione automatica trasparente del canale di controllo CASTv2 senza interrompere il video sulla TV.
+ * Gestore Singleton 100% Open Source (FOSS) del protocollo Google Cast (CASTv2 su TLS porta 8009):
+ * - Mantiene l'istanza viva a livello di processo tramite [CastForegroundService] così il passaggio
+ *   in background o l'apertura delle notifiche non disconnette MAI l'app dal video in riproduzione.
+ * - Quando l'app torna in primo piano ([onAppResumed]), ri-sincronizza istantaneamente il canale
+ *   virtuale (`transportId`) e lo stato `MEDIA_STATUS` (minutaggio, durata, titolo, play/pausa)
+ *   con la Smart TV, permettendo sempre di avanzare (seek) o fermare il video direttamente dall'app.
  */
-class TvCastManager(
+class TvCastManager private constructor(
     context: Context,
     private val streamProxy: LocalStreamProxy = LocalStreamProxy()
 ) {
     private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("tv_cast_session_prefs", Context.MODE_PRIVATE)
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -84,6 +89,7 @@ class TvCastManager(
     private var cpuWakeLock: PowerManager.WakeLock? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val connectMutex = Mutex()
 
     private val _uiState = MutableStateFlow(CastUiState())
     val uiState: StateFlow<CastUiState> = _uiState.asStateFlow()
@@ -92,8 +98,8 @@ class TvCastManager(
     private val resolveQueue = ConcurrentLinkedQueue<NsdServiceInfo>()
     private val isResolving = AtomicBoolean(false)
 
-    private var sslSocket: SSLSocket? = null
-    private var socketOut: DataOutputStream? = null
+    @Volatile private var sslSocket: SSLSocket? = null
+    @Volatile private var socketOut: DataOutputStream? = null
     private var readerJob: Job? = null
     private var heartbeatJob: Job? = null
     private var reconnectJob: Job? = null
@@ -103,6 +109,7 @@ class TvCastManager(
     private val userRequestedDisconnect = AtomicBoolean(false)
 
     @Volatile private var receiverTransportId: String? = null
+    @Volatile private var connectedTransportIdOnCurrentSocket: String? = null
     @Volatile private var mediaSessionId: Int? = null
     @Volatile private var pendingMediaToLoad: DetectedMedia? = null
 
@@ -114,22 +121,80 @@ class TvCastManager(
         }
     }
 
-    fun register() {
+    /**
+     * Chiamato quando `MainActivity` torna in primo piano (`onResume` / `onNewIntent`).
+     * Riavvia il proxy se necessario, avvia la scoperta mDNS e **ri-sincronizza immediatamente**
+     * lo stato della riproduzione con la Smart TV!
+     */
+    fun onAppResumed() {
         streamProxy.start()
         refreshProxyEndpoint()
         startDiscovery()
+
+        scope.launch {
+            val targetDevice = _uiState.value.connectedDevice ?: loadSavedDevice()
+            if (targetDevice != null && !userRequestedDisconnect.get()) {
+                val sock = sslSocket
+                if (sock != null && sock.isConnected && !sock.isClosed) {
+                    // Socket già attivo: forza un GET_STATUS immediato sia sul receiver sia sul player media!
+                    requestFullStatusSync()
+                } else {
+                    // Socket chiuso mentre l'app era in background: riconnetti e ri-sincronizza subito!
+                    reconnectJob?.cancel()
+                    openCastSocket(targetDevice, isAutoReconnect = true)
+                }
+            }
+        }
     }
 
-    fun unregister() {
+    fun onAppPaused() {
         stopDiscovery()
-        // Nota: NON fermiamo streamProxy né i WakeLock/WifiLock se c'è una trasmissione attiva!
+        // NON chiudiamo MAI sslSocket né LocalStreamProxy quando l'app va in background!
     }
+
+    fun register() = onAppResumed()
+    fun unregister() = onAppPaused()
 
     fun shutdown() {
         stopDiscovery()
         disconnect()
         streamProxy.stop()
         releaseStreamingLocks()
+    }
+
+    /**
+     * Forza la ri-sincronizzazione immediata con il video in riproduzione sulla TV.
+     */
+    fun requestFullStatusSync() {
+        scope.launch {
+            val sock = sslSocket
+            val device = _uiState.value.connectedDevice ?: loadSavedDevice()
+            if (sock == null || !sock.isConnected || sock.isClosed) {
+                if (device != null && !userRequestedDisconnect.get()) {
+                    openCastSocket(device, isAutoReconnect = true)
+                }
+                return@launch
+            }
+
+            sendCastMessage(
+                namespace = NS_RECEIVER,
+                destinationId = "receiver-0",
+                payload = JSONObject()
+                    .put("type", "GET_STATUS")
+                    .put("requestId", requestIdCounter.getAndIncrement())
+            )
+            val tId = receiverTransportId
+            if (!tId.isNullOrBlank()) {
+                ensureTransportConnected(tId)
+                sendCastMessage(
+                    namespace = NS_MEDIA,
+                    destinationId = tId,
+                    payload = JSONObject()
+                        .put("type", "GET_STATUS")
+                        .put("requestId", requestIdCounter.getAndIncrement())
+                )
+            }
+        }
     }
 
     fun setUseLocalProxy(enabled: Boolean) {
@@ -144,6 +209,43 @@ class TvCastManager(
         val ip = streamProxy.findLocalLanIpAddress()
         val endpoint = if (ip != null) "$ip:${streamProxy.boundPort}" else null
         _uiState.update { it.copy(localProxyEndpoint = endpoint) }
+    }
+
+    private fun saveConnectedDevice(device: CastDevice) {
+        prefs.edit()
+            .putString("id", device.id)
+            .putString("friendlyName", device.friendlyName)
+            .putString("modelName", device.modelName)
+            .putString("host", device.host)
+            .putInt("port", device.port)
+            .apply()
+    }
+
+    private fun clearSavedDevice() {
+        prefs.edit().clear().apply()
+    }
+
+    private fun loadSavedDevice(): CastDevice? {
+        val host = prefs.getString("host", null) ?: return null
+        val port = prefs.getInt("port", 8009)
+        val id = prefs.getString("id", "$host:$port") ?: "$host:$port"
+        val name = prefs.getString("friendlyName", "Smart TV") ?: "Smart TV"
+        val model = prefs.getString("modelName", "Chromecast") ?: "Chromecast"
+        return CastDevice(id = id, friendlyName = name, modelName = model, host = host, port = port)
+    }
+
+    private fun updateForegroundServiceNotification() {
+        val state = _uiState.value
+        if (state.isConnected && (state.activeMedia != null || state.isPlaying)) {
+            CastForegroundService.startOrUpdate(
+                context = appContext,
+                deviceName = state.deviceName ?: "Smart TV",
+                mediaTitle = state.activeMedia?.title ?: "Video in riproduzione sulla TV",
+                isPlaying = state.isPlaying
+            )
+        } else if (!state.isConnected && state.activeMedia == null) {
+            CastForegroundService.stop(appContext)
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -176,7 +278,7 @@ class TvCastManager(
                 }
             }
             if (cpuWakeLock?.isHeld == false) {
-                cpuWakeLock?.acquire(4 * 60 * 60 * 1000L) // Max 4 ore
+                cpuWakeLock?.acquire(4 * 60 * 60 * 1000L)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Impossibile acquisire WakeLock: ${e.message}")
@@ -333,14 +435,22 @@ class TvCastManager(
             }
             current.copy(discoveredDevices = updated)
         }
+
+        // Se questa è l'ultima TV usata e non siamo ancora connessi, riconnettiti automaticamente per sincronizzare!
+        val saved = loadSavedDevice()
+        if (saved != null && saved.host == device.host && !_uiState.value.isConnected && !userRequestedDisconnect.get()) {
+            scope.launch {
+                openCastSocket(device, isAutoReconnect = true)
+            }
+        }
     }
 
-    // MARK: - Connessione CASTv2 su TLS (Porta 8009) con Auto-Reconnect
+    // MARK: - Connessione CASTv2 su TLS (Porta 8009) con Auto-Reconnect & Re-Sync
 
     fun connectToDevice(device: CastDevice) {
         userRequestedDisconnect.set(false)
+        saveConnectedDevice(device)
         reconnectJob?.cancel()
-        closeSocketOnly()
         acquireStreamingLocks()
 
         _uiState.update {
@@ -353,77 +463,93 @@ class TvCastManager(
     }
 
     private suspend fun openCastSocket(device: CastDevice, isAutoReconnect: Boolean): Boolean {
-        return try {
-            val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-            })
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(null, trustAll, SecureRandom())
-
-            val socket = sslContext.socketFactory.createSocket() as SSLSocket
-            socket.keepAlive = true
-            socket.tcpNoDelay = true
-            socket.connect(InetSocketAddress(device.host, device.port), 10_000)
-            socket.startHandshake()
-
-            sslSocket = socket
-            socketOut = DataOutputStream(socket.outputStream)
-
-            _uiState.update {
-                it.copy(
-                    isConnected = true,
-                    connectedDevice = device,
-                    deviceName = device.friendlyName,
-                    statusMessage = if (isAutoReconnect && it.activeMedia != null) {
-                        "Connesso a ${device.friendlyName} (Buffer attivo)"
-                    } else {
-                        "Connesso a ${device.friendlyName}"
-                    }
-                )
+        return connectMutex.withLock {
+            // Se un altro job ha già ristabilito la connessione, non aprire un secondo socket!
+            val existing = sslSocket
+            if (existing != null && existing.isConnected && !existing.isClosed && _uiState.value.connectedDevice?.host == device.host) {
+                return@withLock true
             }
 
-            // 1. Invia CONNECT al receiver-0
-            sendCastMessage(
-                namespace = NS_CONNECTION,
-                destinationId = "receiver-0",
-                payload = JSONObject().put("type", "CONNECT")
-            )
+            closeSocketOnly()
 
-            // 2. Avvia loop di lettura e heartbeat
-            startReaderLoop(socket, device)
-            startHeartbeatLoop()
+            try {
+                val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+                })
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAll, SecureRandom())
 
-            // 3. Se c'era un video in attesa di trasmissione, avvialo subito;
-            //    altrimenti chiedi lo stato attuale del receiver senza interrompere la riproduzione!
-            val pending = pendingMediaToLoad
-            if (pending != null) {
-                pendingMediaToLoad = null
-                castVideo(pending)
-            } else {
-                sendCastMessage(
-                    namespace = NS_RECEIVER,
-                    destinationId = "receiver-0",
-                    payload = JSONObject()
-                        .put("type", "GET_STATUS")
-                        .put("requestId", requestIdCounter.getAndIncrement())
-                )
-            }
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Errore connessione CASTv2 a ${device.host}:${device.port}", e)
-            if (!isAutoReconnect) {
+                val socket = sslContext.socketFactory.createSocket() as SSLSocket
+                socket.keepAlive = true
+                socket.tcpNoDelay = true
+                socket.connect(InetSocketAddress(device.host, device.port), 6_000)
+                socket.startHandshake()
+
+                sslSocket = socket
+                socketOut = DataOutputStream(socket.outputStream)
+                connectedTransportIdOnCurrentSocket = null
+
+                saveConnectedDevice(device)
+                acquireStreamingLocks()
+
                 _uiState.update {
                     it.copy(
-                        isConnected = false,
-                        connectedDevice = null,
-                        deviceName = null,
-                        statusMessage = "Connessione fallita a ${device.friendlyName}"
+                        isConnected = true,
+                        connectedDevice = device,
+                        deviceName = device.friendlyName,
+                        statusMessage = if (isAutoReconnect && it.activeMedia != null) {
+                            "Sincronizzato con ${device.friendlyName}"
+                        } else {
+                            "Connesso a ${device.friendlyName}"
+                        }
                     )
                 }
+
+                // 1. Invia CONNECT al receiver-0
+                sendCastMessage(
+                    namespace = NS_CONNECTION,
+                    destinationId = "receiver-0",
+                    payload = JSONObject().put("type", "CONNECT")
+                )
+
+                // 2. Avvia loop di lettura e heartbeat
+                startReaderLoop(socket, device)
+                startHeartbeatLoop()
+
+                // 3. Se c'era un video in attesa di trasmissione, avvialo;
+                //    altrimenti chiedi subito GET_STATUS per ri-agganciare la sessione attiva sulla TV!
+                val pending = pendingMediaToLoad
+                if (pending != null) {
+                    pendingMediaToLoad = null
+                    launchMediaOnConnectedSocket(pending)
+                } else {
+                    sendCastMessage(
+                        namespace = NS_RECEIVER,
+                        destinationId = "receiver-0",
+                        payload = JSONObject()
+                            .put("type", "GET_STATUS")
+                            .put("requestId", requestIdCounter.getAndIncrement())
+                    )
+                }
+
+                updateForegroundServiceNotification()
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "Connessione CASTv2 non riuscita a ${device.host}:${device.port}: ${e.message}")
+                if (!isAutoReconnect) {
+                    _uiState.update {
+                        it.copy(
+                            isConnected = false,
+                            connectedDevice = null,
+                            deviceName = null,
+                            statusMessage = "Connessione fallita a ${device.friendlyName}"
+                        )
+                    }
+                }
+                false
             }
-            false
         }
     }
 
@@ -440,14 +566,20 @@ class TvCastManager(
         connectToDevice(device)
     }
 
+    /**
+     * Chiude solo il socket TLS corrente resettando SEMPRE `receiverTransportId` e `connectedTransportIdOnCurrentSocket`
+     * così alla riconnessione il nuovo socket invierà obbligatoriamente `CONNECT` e `GET_STATUS` al `transportId`!
+     */
     private fun closeSocketOnly() {
         heartbeatJob?.cancel()
         heartbeatJob = null
         readerJob?.cancel()
         readerJob = null
+        receiverTransportId = null
+        connectedTransportIdOnCurrentSocket = null
         try {
             sslSocket?.close()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         sslSocket = null
         socketOut = null
@@ -455,13 +587,14 @@ class TvCastManager(
 
     fun disconnect() {
         userRequestedDisconnect.set(true)
+        clearSavedDevice()
         reconnectJob?.cancel()
         reconnectJob = null
         closeSocketOnly()
-        receiverTransportId = null
         mediaSessionId = null
         shouldLoadNewMedia.set(false)
         releaseStreamingLocks()
+        CastForegroundService.stop(appContext)
 
         _uiState.update {
             it.copy(
@@ -471,12 +604,15 @@ class TvCastManager(
                 activeMedia = null,
                 activeStreamUrl = null,
                 isPlaying = false,
+                currentPositionSeconds = 0.0,
+                durationSeconds = 0.0,
                 statusMessage = "Disconnesso dalla TV"
             )
         }
     }
 
     fun castVideo(media: DetectedMedia) {
+        userRequestedDisconnect.set(false)
         acquireStreamingLocks()
         refreshProxyEndpoint()
         val streamUrlToCast = if (_uiState.value.useLocalProxy) {
@@ -488,15 +624,21 @@ class TvCastManager(
         _uiState.update {
             it.copy(
                 activeMedia = media,
-                activeStreamUrl = streamUrlToCast
+                activeStreamUrl = streamUrlToCast,
+                currentPositionSeconds = 0.0,
+                durationSeconds = 0.0
             )
         }
+        updateForegroundServiceNotification()
 
-        if (!_uiState.value.isConnected || sslSocket == null) {
+        val sock = sslSocket
+        if (!_uiState.value.isConnected || sock == null || !sock.isConnected || sock.isClosed) {
             pendingMediaToLoad = media
-            val firstTv = _uiState.value.discoveredDevices.firstOrNull()
-            if (firstTv != null) {
-                connectToDevice(firstTv)
+            val targetTv = _uiState.value.connectedDevice
+                ?: loadSavedDevice()
+                ?: _uiState.value.discoveredDevices.firstOrNull()
+            if (targetTv != null) {
+                connectToDevice(targetTv)
             } else {
                 _uiState.update {
                     it.copy(statusMessage = "Seleziona una Smart TV dal pulsante Cast in alto a destra")
@@ -506,17 +648,33 @@ class TvCastManager(
         }
 
         scope.launch {
-            shouldLoadNewMedia.set(true)
-            receiverTransportId = null
-            val launchJson = JSONObject()
-                .put("type", "LAUNCH")
-                .put("appId", DEFAULT_MEDIA_RECEIVER_APP_ID)
-                .put("requestId", requestIdCounter.getAndIncrement())
+            launchMediaOnConnectedSocket(media)
+        }
+    }
 
+    private fun launchMediaOnConnectedSocket(media: DetectedMedia) {
+        shouldLoadNewMedia.set(true)
+        receiverTransportId = null
+        connectedTransportIdOnCurrentSocket = null
+        val launchJson = JSONObject()
+            .put("type", "LAUNCH")
+            .put("appId", DEFAULT_MEDIA_RECEIVER_APP_ID)
+            .put("requestId", requestIdCounter.getAndIncrement())
+
+        sendCastMessage(
+            namespace = NS_RECEIVER,
+            destinationId = "receiver-0",
+            payload = launchJson
+        )
+    }
+
+    private fun ensureTransportConnected(transportId: String) {
+        if (connectedTransportIdOnCurrentSocket != transportId) {
+            connectedTransportIdOnCurrentSocket = transportId
             sendCastMessage(
-                namespace = NS_RECEIVER,
-                destinationId = "receiver-0",
-                payload = launchJson
+                namespace = NS_CONNECTION,
+                destinationId = transportId,
+                payload = JSONObject().put("type", "CONNECT")
             )
         }
     }
@@ -528,16 +686,12 @@ class TvCastManager(
             media.url
         }
         val modeLabel = if (_uiState.value.useLocalProxy && streamUrlToCast != media.url) {
-            "${media.format.label} • Proxy + Buffer RAM"
+            "${media.format.label} • Proxy + Buffer 100MB"
         } else {
             "${media.format.label} • Diretto"
         }
 
-        sendCastMessage(
-            namespace = NS_CONNECTION,
-            destinationId = transportId,
-            payload = JSONObject().put("type", "CONNECT")
-        )
+        ensureTransportConnected(transportId)
 
         val metadata = JSONObject()
             .put("metadataType", 1)
@@ -570,35 +724,31 @@ class TvCastManager(
                 statusMessage = "Riproduzione avviata su ${it.deviceName ?: "TV"} ($modeLabel)"
             )
         }
+        updateForegroundServiceNotification()
     }
 
     fun togglePlayPause() {
-        val transportId = receiverTransportId ?: return
-        val sessionId = mediaSessionId ?: return
-        val currentlyPlaying = _uiState.value.isPlaying
-        val command = if (currentlyPlaying) "PAUSE" else "PLAY"
-
         scope.launch {
+            val tId = ensureReadyForMediaCommand() ?: return@launch
+            val sId = mediaSessionId ?: return@launch
+            val currentlyPlaying = _uiState.value.isPlaying
+            val command = if (currentlyPlaying) "PAUSE" else "PLAY"
+
             val payload = JSONObject()
                 .put("type", command)
-                .put("mediaSessionId", sessionId)
+                .put("mediaSessionId", sId)
                 .put("requestId", requestIdCounter.getAndIncrement())
             sendCastMessage(
                 namespace = NS_MEDIA,
-                destinationId = transportId,
+                destinationId = tId,
                 payload = payload
             )
             _uiState.update { it.copy(isPlaying = !currentlyPlaying) }
+            updateForegroundServiceNotification()
         }
     }
 
-    /**
-     * Sposta la riproduzione sulla TV a un secondo specifico (Seek manuale).
-     * Riavvia il timer di stabilità di 30 secondi del buffer senza perdere i segmenti già in RAM.
-     */
     fun seekTo(positionSeconds: Double) {
-        val transportId = receiverTransportId ?: return
-        val sessionId = mediaSessionId ?: return
         val duration = _uiState.value.durationSeconds
         val targetPos = if (duration > 0) positionSeconds.coerceIn(0.0, duration) else positionSeconds.coerceAtLeast(0.0)
 
@@ -606,14 +756,16 @@ class TvCastManager(
         _uiState.update { it.copy(currentPositionSeconds = targetPos) }
 
         scope.launch {
+            val tId = ensureReadyForMediaCommand() ?: return@launch
+            val sId = mediaSessionId ?: return@launch
             val payload = JSONObject()
                 .put("type", "SEEK")
-                .put("mediaSessionId", sessionId)
+                .put("mediaSessionId", sId)
                 .put("currentTime", targetPos)
                 .put("requestId", requestIdCounter.getAndIncrement())
             sendCastMessage(
                 namespace = NS_MEDIA,
-                destinationId = transportId,
+                destinationId = tId,
                 payload = payload
             )
         }
@@ -625,31 +777,69 @@ class TvCastManager(
     }
 
     fun stopCasting() {
-        val transportId = receiverTransportId
-        val sessionId = mediaSessionId
         shouldLoadNewMedia.set(false)
-        if (transportId != null && sessionId != null) {
-            scope.launch {
+        scope.launch {
+            val tId = receiverTransportId
+            val sId = mediaSessionId
+            if (tId != null && sId != null) {
+                ensureTransportConnected(tId)
                 val payload = JSONObject()
                     .put("type", "STOP")
-                    .put("mediaSessionId", sessionId)
+                    .put("mediaSessionId", sId)
                     .put("requestId", requestIdCounter.getAndIncrement())
                 sendCastMessage(
                     namespace = NS_MEDIA,
-                    destinationId = transportId,
+                    destinationId = tId,
                     payload = payload
                 )
             }
+            // Chiude anche l'app receiver sulla TV così la TV torna alla schermata principale
+            sendCastMessage(
+                namespace = NS_RECEIVER,
+                destinationId = "receiver-0",
+                payload = JSONObject()
+                    .put("type", "STOP")
+                    .put("requestId", requestIdCounter.getAndIncrement())
+            )
         }
         streamProxy.clearBufferCache()
+        CastForegroundService.stop(appContext)
         _uiState.update {
             it.copy(
                 activeMedia = null,
                 activeStreamUrl = null,
                 isPlaying = false,
+                currentPositionSeconds = 0.0,
+                durationSeconds = 0.0,
                 statusMessage = "Riproduzione terminata"
             )
         }
+    }
+
+    /**
+     * Garantisce che il socket e il `transportId` siano connessi prima di inviare un comando (Play/Pausa/Seek).
+     * Se l'app era appena tornata dal background, attende fino a 2 secondi la ri-sincronizzazione automatica!
+     */
+    private suspend fun ensureReadyForMediaCommand(): String? {
+        val sock = sslSocket
+        if (sock == null || !sock.isConnected || sock.isClosed) {
+            val device = _uiState.value.connectedDevice ?: loadSavedDevice() ?: return null
+            openCastSocket(device, isAutoReconnect = true)
+        }
+        if (receiverTransportId == null || mediaSessionId == null) {
+            requestFullStatusSync()
+            repeat(15) {
+                delay(120)
+                if (receiverTransportId != null && mediaSessionId != null) {
+                    val tId = receiverTransportId!!
+                    ensureTransportConnected(tId)
+                    return tId
+                }
+            }
+        }
+        val tId = receiverTransportId ?: return null
+        ensureTransportConnected(tId)
+        return tId
     }
 
     private fun startHeartbeatLoop() {
@@ -673,9 +863,10 @@ class TvCastManager(
                         payload = JSONObject().put("type", "PING")
                     )
                 }
-                if (ticks % 10 == 0) {
+                if (ticks % 8 == 0) {
                     val tId = receiverTransportId
                     if (tId != null) {
+                        ensureTransportConnected(tId)
                         sendCastMessage(
                             namespace = NS_MEDIA,
                             destinationId = tId,
@@ -711,21 +902,19 @@ class TvCastManager(
         }
     }
 
-    /**
-     * Se il socket di controllo sulla porta 8009 cade temporaneamente mentre la TV sta riproducendo
-     * dal LocalStreamProxy, riconnette il socket di controllo in background senza interrompere il video!
-     */
     private fun scheduleAutoReconnect(device: CastDevice) {
         if (userRequestedDisconnect.get()) return
-        reconnectJob?.cancel()
+        if (reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
             closeSocketOnly()
-            for (attempt in 1..10) {
+            var attempt = 0
+            while (isActive && !userRequestedDisconnect.get()) {
+                attempt++
+                val delayMs = (1_500L * attempt.coerceAtMost(4))
+                delay(delayMs)
                 if (userRequestedDisconnect.get()) return@launch
-                delay(2_000L)
-                Log.i(TAG, "Tentativo auto-reconnect CASTv2 #$attempt a ${device.friendlyName}...")
                 if (openCastSocket(device, isAutoReconnect = true)) {
-                    Log.i(TAG, "Auto-reconnect CASTv2 riuscito!")
+                    Log.i(TAG, "Auto-reconnect e ri-sincronizzazione CASTv2 riusciti con ${device.friendlyName}!")
                     return@launch
                 }
             }
@@ -753,34 +942,53 @@ class TvCastManager(
                 }
                 "RECEIVER_STATUS" -> {
                     val status = obj.optJSONObject("status") ?: return
-                    val apps = status.optJSONArray("applications") ?: return
-                    for (i in 0 until apps.length()) {
-                        val app = apps.optJSONObject(i) ?: continue
-                        if (app.optString("appId") == DEFAULT_MEDIA_RECEIVER_APP_ID) {
-                            val transportId = app.optString("transportId")
-                            if (transportId.isNotBlank()) {
-                                val isNewTransport = (receiverTransportId != transportId)
-                                receiverTransportId = transportId
-                                if (shouldLoadNewMedia.compareAndSet(true, false)) {
-                                    _uiState.value.activeMedia?.let { media ->
-                                        sendMediaLoad(transportId, media)
+                    val apps = status.optJSONArray("applications")
+                    var foundMediaReceiver = false
+
+                    if (apps != null) {
+                        for (i in 0 until apps.length()) {
+                            val app = apps.optJSONObject(i) ?: continue
+                            if (app.optString("appId") == DEFAULT_MEDIA_RECEIVER_APP_ID) {
+                                foundMediaReceiver = true
+                                val transportId = app.optString("transportId")
+                                if (transportId.isNotBlank()) {
+                                    receiverTransportId = transportId
+                                    ensureTransportConnected(transportId)
+
+                                    if (shouldLoadNewMedia.compareAndSet(true, false)) {
+                                        _uiState.value.activeMedia?.let { media ->
+                                            sendMediaLoad(transportId, media)
+                                        }
+                                    } else {
+                                        // Chiede SEMPRE lo stato media attuale al transportId per ri-sincronizzarsi!
+                                        sendCastMessage(
+                                            namespace = NS_MEDIA,
+                                            destinationId = transportId,
+                                            payload = JSONObject()
+                                                .put("type", "GET_STATUS")
+                                                .put("requestId", requestIdCounter.getAndIncrement())
+                                        )
                                     }
-                                } else if (isNewTransport) {
-                                    // Ri-aggancia la sessione media in corso senza riavviare il video
-                                    sendCastMessage(
-                                        namespace = NS_CONNECTION,
-                                        destinationId = transportId,
-                                        payload = JSONObject().put("type", "CONNECT")
-                                    )
-                                    sendCastMessage(
-                                        namespace = NS_MEDIA,
-                                        destinationId = transportId,
-                                        payload = JSONObject()
-                                            .put("type", "GET_STATUS")
-                                            .put("requestId", requestIdCounter.getAndIncrement())
-                                    )
                                 }
                             }
+                        }
+                    }
+
+                    // Se il receiver sulla TV è stato chiuso (es. fermato dal telecomando o da Google Home)
+                    if (!foundMediaReceiver && !shouldLoadNewMedia.get() && _uiState.value.activeMedia != null) {
+                        receiverTransportId = null
+                        connectedTransportIdOnCurrentSocket = null
+                        mediaSessionId = null
+                        CastForegroundService.stop(appContext)
+                        _uiState.update {
+                            it.copy(
+                                activeMedia = null,
+                                activeStreamUrl = null,
+                                isPlaying = false,
+                                currentPositionSeconds = 0.0,
+                                durationSeconds = 0.0,
+                                statusMessage = "Riproduzione terminata sulla TV"
+                            )
                         }
                     }
                 }
@@ -795,7 +1003,26 @@ class TvCastManager(
                         val currentTime = first.optDouble("currentTime", -1.0)
                         val mediaObj = first.optJSONObject("media")
                         val duration = mediaObj?.optDouble("duration", -1.0) ?: -1.0
+                        val contentId = mediaObj?.optString("contentId").orEmpty()
+                        val metaTitle = mediaObj?.optJSONObject("metadata")?.optString("title").orEmpty()
                         val playerState = first.optString("playerState")
+                        val idleReason = first.optString("idleReason")
+
+                        if (playerState == "IDLE" && idleReason in listOf("CANCELLED", "FINISHED", "INTERRUPTED", "ERROR")) {
+                            mediaSessionId = null
+                            CastForegroundService.stop(appContext)
+                            _uiState.update { prev ->
+                                prev.copy(
+                                    activeMedia = null,
+                                    activeStreamUrl = null,
+                                    isPlaying = false,
+                                    currentPositionSeconds = 0.0,
+                                    durationSeconds = 0.0,
+                                    statusMessage = "Riproduzione terminata"
+                                )
+                            }
+                            return
+                        }
 
                         _uiState.update { prev ->
                             val playing = if (playerState.isNotBlank()) {
@@ -803,12 +1030,27 @@ class TvCastManager(
                             } else {
                                 prev.isPlaying
                             }
+                            // Se l'app era stata chiusa/riaperta mentre il video andava sulla TV, ricostruisci activeMedia!
+                            val syncedMedia = prev.activeMedia ?: if (contentId.isNotBlank()) {
+                                DetectedMedia(
+                                    url = contentId,
+                                    title = metaTitle.ifBlank { "Video in riproduzione sulla TV" },
+                                    pageUrl = "",
+                                    format = StreamFormat.HLS
+                                )
+                            } else {
+                                null
+                            }
+
                             prev.copy(
+                                activeMedia = syncedMedia,
+                                activeStreamUrl = prev.activeStreamUrl ?: contentId.takeIf { it.isNotBlank() },
                                 isPlaying = playing,
                                 currentPositionSeconds = if (currentTime >= 0.0) currentTime else prev.currentPositionSeconds,
                                 durationSeconds = if (duration > 0.0) duration else prev.durationSeconds
                             )
                         }
+                        updateForegroundServiceNotification()
                     }
                 }
             }
@@ -923,5 +1165,14 @@ class TvCastManager(
         private const val NS_HEARTBEAT = "urn:x-cast:com.google.cast.tp.heartbeat"
         private const val NS_RECEIVER = "urn:x-cast:com.google.cast.receiver"
         private const val NS_MEDIA = "urn:x-cast:com.google.cast.media"
+
+        @Volatile
+        private var INSTANCE: TvCastManager? = null
+
+        fun getInstance(context: Context): TvCastManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: TvCastManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

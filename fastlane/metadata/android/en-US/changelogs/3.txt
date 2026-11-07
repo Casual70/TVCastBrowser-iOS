@@ -1,0 +1,6 @@
+Version 1.2.0 (Build 3):
+- Draggable floating Cast button that can be moved anywhere on screen.
+- Up to 100 MB RAM Pre-Buffer starting automatically after 30 seconds of steady playback.
+- TV Seek controls (Seek Slider, -30s, +30s, +5m) in the bottom remote bar.
+- Fixed socket abort handling during manual seeking.
+

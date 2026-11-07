@@ -83,7 +83,7 @@ fun BrowserCastScreen(
             }
             "v${pInfo.versionName} (#$vCode)"
         } catch (_: Exception) {
-            "v1.2.0 (#3)"
+            "v1.3.0 (#4)"
         }
     }
     val focusManager = LocalFocusManager.current

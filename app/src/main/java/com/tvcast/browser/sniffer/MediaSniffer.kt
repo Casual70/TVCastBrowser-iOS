@@ -273,6 +273,14 @@ class MediaSniffer {
     }
 
     companion object {
+        @Volatile
+        private var INSTANCE: MediaSniffer? = null
+
+        fun getInstance(): MediaSniffer {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: MediaSniffer().also { INSTANCE = it }
+            }
+        }
         /**
          * Script iniettato in TUTTI i frame (inclusi `<iframe>` cross-origin come `vixcloud.co`)
          * tramite `WebViewCompat.addDocumentStartJavaScript` prima dell'esecuzione degli script pagina:

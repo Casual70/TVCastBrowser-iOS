@@ -1,0 +1,3 @@
+Version 1.3.0 (Build 4):
+- Foreground Media Playback service keeping the Cast connection and 100MB RAM buffer alive in background.
+- Instant re-synchronization with the video playing on TV when resuming the app.

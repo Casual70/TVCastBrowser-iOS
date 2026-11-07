@@ -1,0 +1,6 @@
+Versione 1.2.0 (Build 3):
+- Pulsante Cast flottante e trascinabile liberamente sullo schermo.
+- Pre-Buffer RAM fino a 100 MB con attivazione automatica dopo 30 secondi di riproduzione stabile.
+- Controlli di avanzamento rapido (Seek Slider, -30s, +30s, +5m) verso la Smart TV.
+- Risolta chiusura socket durante il seek manuale.
+

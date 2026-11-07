@@ -1,0 +1,3 @@
+Versione 1.3.0 (Build 4):
+- Servizio Foreground di trasmissione per mantenere sempre attiva e sincronizzata la connessione Cast anche in background.
+- Ri-sincronizzazione istantanea con il video in riproduzione sulla TV al ritorno nell'app.
