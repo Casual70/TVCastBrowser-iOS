@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permessi per navigazione Web e scoperta dispositivi Cast su rete locale -->
     <!-- Permessi per navigazione Web, proxy HTTP locale e scoperta Smart TV (mDNS / NSD) su rete Wi-Fi -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -16,11 +15,6 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.TVCastBrowser">
-
-        <!-- Provider richiesto da Google Cast SDK per inizializzare CastContext -->
-        <meta-data
-            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.tvcast.browser.cast.CastOptionsProvider" />
 
         <activity
             android:name=".MainActivity"

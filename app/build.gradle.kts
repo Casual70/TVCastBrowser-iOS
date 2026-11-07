@@ -13,7 +13,6 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-draft"
         versionName = "1.0.0"
 
         vectorDrawables {
@@ -41,7 +40,6 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
             isMinifyEnabled = true
             isShrinkResources = true
             val keystoreFile = rootProject.file("keystore/tvcast-release.jks")
@@ -80,16 +78,10 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-
-    // Cast & MediaRouter support
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.mediarouter)
-    implementation(libs.play.services.cast.framework)
 
-    // Enhanced WebView capabilities
     // Enhanced WebView capabilities (Open Source AndroidX WebKit)
     implementation(libs.androidx.webkit)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
-

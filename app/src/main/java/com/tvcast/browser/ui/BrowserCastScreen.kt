@@ -30,10 +30,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.mediarouter.app.MediaRouteButton
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import com.google.android.gms.cast.framework.CastButtonFactory
 import com.tvcast.browser.cast.CastDevice
 import com.tvcast.browser.cast.TvCastManager
 import com.tvcast.browser.data.BrowserPreferences
@@ -288,12 +286,6 @@ fun BrowserCastScreen(
                                 )
                             }
 
-                            // Pulsante nativo Google Cast per scelta Smart TV sulla rete Wi-Fi
-                            AndroidView(
-                                factory = { ctx ->
-                                    MediaRouteButton(ctx).apply {
-                                        CastButtonFactory.setUpMediaRouteButton(ctx.applicationContext, this)
-                                    }
                             // Pulsante FOSS Selettore Smart TV / Chromecast sulla rete Wi-Fi
                             IconButton(
                                 onClick = {
@@ -301,7 +293,6 @@ fun BrowserCastScreen(
                                     showCastDevicesSheet = true
                                 },
                                 modifier = Modifier.size(40.dp)
-                            )
                             ) {
                                 Icon(
                                     imageVector = if (castState.isConnected) Icons.Default.CastConnected else Icons.Default.Cast,
@@ -398,7 +389,6 @@ fun BrowserCastScreen(
             if (castState.activeMedia != null || castState.isConnected) {
                 RemoteControlBar(
                     deviceName = castState.deviceName ?: "Smart TV non connessa",
-                    mediaTitle = castState.activeMedia?.title ?: "Pronto per trasmettere",
                     mediaTitle = castState.activeMedia?.title ?: (castState.statusMessage ?: "Pronto per trasmettere"),
                     isPlaying = castState.isPlaying,
                     onPlayPause = { castManager.togglePlayPause() },
@@ -1012,7 +1002,6 @@ private fun DetectedMediaSheetContent(
                 )
                 Text(
                     text = if (isConnectedToTv) "TV connessa: $tvName"
-                    else "Suggerimento: connetti prima la Smart TV dall'icona Cast in alto",
                     else "Suggerimento: connetti la Smart TV dall'icona Cast in alto (o premi Cast per auto-connettere)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
