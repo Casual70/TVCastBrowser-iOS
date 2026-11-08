@@ -24,10 +24,14 @@ jobs:
           distribution: "temurin"
 
       - name: Build Signed Release APK
+        env:
+          KEYSTORE_PASSWORD: tvcast2026
+          KEY_PASSWORD: tvcast2026
+          KEY_ALIAS: tvcast
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
-          cp app/build/outputs/apk/release/*.apk TVCastBrowser-v1.6.0.apk
+          ./gradlew assembleRelease --stacktrace --no-daemon
+          find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} TVCastBrowser-v1.6.0.apk \;
 
       - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
@@ -79,16 +83,18 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     needs: [ build-android, build-ios ]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Download Android APK
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: TVCastBrowser-Android-FOSS-APK
 
       - name: Download iOS IPA
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: TVCastBrowser-iOS-IPA
 

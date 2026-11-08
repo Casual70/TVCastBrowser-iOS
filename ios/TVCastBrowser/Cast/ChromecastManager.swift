@@ -147,7 +147,6 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
                     if let pending = self.pendingMediaToLoad {
                         self.pendingMediaToLoad = nil
                         self.castVideo(pending, startTime: self.pendingStartTimeSeconds)
-                        self.castVideo(pending)
                     }
                 case .failed(let err):
                     self.statusMessage = "Errore connessione TV: \(err.localizedDescription)"
@@ -174,7 +173,6 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
 
     func castVideo(_ media: DetectedMedia, cookies: String? = nil, startTime: Double = 0.0) {
         pendingStartTimeSeconds = startTime
-    func castVideo(_ media: DetectedMedia, cookies: String? = nil) {
         refreshProxyEndpoint()
         activeMedia = media
 
@@ -210,7 +208,6 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
         )
 
         var loadPayload: [String: Any] = [
-        let loadPayload: [String: Any] = [
             "type": "LOAD",
             "requestId": nextRequestId(),
             "autoplay": true,
