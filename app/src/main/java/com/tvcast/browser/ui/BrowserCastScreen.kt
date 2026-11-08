@@ -117,12 +117,16 @@ fun BrowserCastScreen(
         webViewRef?.goBack()
     }
 
-    fun pausePhoneWebMedia() {
+    fun captureWebMediaTimeAndPause(onComplete: (Double) -> Unit) {
         val js = """
             (function() {
+                var currentPos = 0;
                 try {
-                    var vids = document.querySelectorAll('video, audio');
+                    var vids = document.querySelectorAll('video');
                     for (var i = 0; i < vids.length; i++) {
+                        if (vids[i].currentTime > currentPos) {
+                            currentPos = vids[i].currentTime;
+                        }
                         try { vids[i].pause(); } catch(e) {}
                     }
                     var ifrs = document.querySelectorAll('iframe');
@@ -130,17 +134,25 @@ fun BrowserCastScreen(
                         try {
                             var doc = ifrs[j].contentDocument || ifrs[j].contentWindow.document;
                             if (doc) {
-                                var ifrVids = doc.querySelectorAll('video, audio');
+                                var ifrVids = doc.querySelectorAll('video');
                                 for (var k = 0; k < ifrVids.length; k++) {
+                                    if (ifrVids[k].currentTime > currentPos) {
+                                        currentPos = ifrVids[k].currentTime;
+                                    }
                                     try { ifrVids[k].pause(); } catch(e) {}
                                 }
                             }
                         } catch(e) {}
                     }
                 } catch(e) {}
+                return currentPos;
             })();
         """.trimIndent()
-        webViewRef?.evaluateJavascript(js, null)
+        webViewRef?.evaluateJavascript(js) { res ->
+            val clean = res?.trim('"', '\'') ?: "0"
+            val sec = clean.toDoubleOrNull() ?: 0.0
+            onComplete(sec)
+        } ?: onComplete(0.0)
     }
 
     fun navigateExplicitly(rawInput: String) {
@@ -707,8 +719,9 @@ fun BrowserCastScreen(
                 bufferStats = castState.bufferStats,
                 onToggleLocalProxy = { castManager.setUseLocalProxy(it) },
                 onSelectMedia = { media ->
-                    pausePhoneWebMedia()
-                    castManager.castVideo(media)
+                    captureWebMediaTimeAndPause { startPos ->
+                        castManager.castVideo(media, startTimeSeconds = startPos)
+                    }
                     showMediaSheet = false
                     if (!castState.isConnected && castState.discoveredDevices.isEmpty()) {
                         showCastDevicesSheet = true

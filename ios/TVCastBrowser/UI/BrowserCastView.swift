@@ -22,12 +22,18 @@ final class WebViewControllerStore: ObservableObject {
         webView?.reload()
     }
 
+    func captureWebMediaTimeAndPause(completion: @escaping (Double) -> Void) {
     func pauseWebMedia() {
         let js = """
             (function() {
+                var currentPos = 0;
                 try {
+                    var vids = document.querySelectorAll('video');
                     var vids = document.querySelectorAll('video, audio');
                     for (var i = 0; i < vids.length; i++) {
+                        if (vids[i].currentTime > currentPos) {
+                            currentPos = vids[i].currentTime;
+                        }
                         try { vids[i].pause(); } catch(e) {}
                     }
                     var ifrs = document.querySelectorAll('iframe');
@@ -35,16 +41,34 @@ final class WebViewControllerStore: ObservableObject {
                         try {
                             var doc = ifrs[j].contentDocument || ifrs[j].contentWindow.document;
                             if (doc) {
+                                var ifrVids = doc.querySelectorAll('video');
                                 var ifrVids = doc.querySelectorAll('video, audio');
                                 for (var k = 0; k < ifrVids.length; k++) {
+                                    if (ifrVids[k].currentTime > currentPos) {
+                                        currentPos = ifrVids[k].currentTime;
+                                    }
                                     try { ifrVids[k].pause(); } catch(e) {}
                                 }
                             }
                         } catch(e) {}
                     }
                 } catch(e) {}
+                return currentPos;
             })();
         """
+        guard let webView = webView else {
+            completion(0.0)
+            return
+        }
+        webView.evaluateJavaScript(js) { result, _ in
+            if let num = result as? NSNumber {
+                completion(num.doubleValue)
+            } else if let str = result as? String, let dbl = Double(str) {
+                completion(dbl)
+            } else {
+                completion(0.0)
+            }
+        }
         webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 }
@@ -549,6 +573,9 @@ struct BrowserCastView: View {
                     } else {
                         ForEach(sniffer.detectedMediaList) { media in
                             Button {
+                                webStore.captureWebMediaTimeAndPause { startPos in
+                                    castManager.castVideo(media, startTime: startPos)
+                                }
                                 webStore.pauseWebMedia()
                                 castManager.castVideo(media)
                                 showMediaSheet = false
