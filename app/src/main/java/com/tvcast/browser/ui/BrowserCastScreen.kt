@@ -1207,7 +1207,7 @@ private fun DetectedMediaSheetContent(
         Surface(
             onClick = {
                 try {
-                    val donateUrl = "https://www.paypal.com/donate/?business=casual70%40gmail.com&no_recurring=0&item_name=Support+TV+Cast+Browser&currency_code=EUR"
+                    val donateUrl = "https://paypal.me/FilippoProcacci"
                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(donateUrl))
                     context.startActivity(intent)
                 } catch (_: Exception) {}
@@ -1246,7 +1246,7 @@ private fun DetectedMediaSheetContent(
                 FilledTonalButton(
                     onClick = {
                         try {
-                            val donateUrl = "https://www.paypal.com/donate/?business=casual70%40gmail.com&no_recurring=0&item_name=Support+TV+Cast+Browser&currency_code=EUR"
+                            val donateUrl = "https://paypal.me/FilippoProcacci"
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(donateUrl))
                             context.startActivity(intent)
                         } catch (_: Exception) {}

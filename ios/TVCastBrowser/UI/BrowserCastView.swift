@@ -466,6 +466,29 @@ struct BrowserCastView: View {
         NavigationView {
             List {
                 Section {
+                    Link(destination: URL(string: "https://paypal.me/FilippoProcacci")!) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.pink)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Offrimi un caffè (PayPal)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.primary)
+                                Text("Supporta lo sviluppo open source di TV Cast Browser")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.forward.app")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
+                Section {
                     Toggle(isOn: $castManager.useLocalProxy) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Proxy HTTP Locale (Referer & Cookie)")
