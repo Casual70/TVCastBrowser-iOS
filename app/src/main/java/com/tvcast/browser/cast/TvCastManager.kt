@@ -611,10 +611,7 @@ class TvCastManager private constructor(
         }
     }
 
-    @Volatile private var pendingStartTimeSeconds: Double = 0.0
-
-    fun castVideo(media: DetectedMedia, startTimeSeconds: Double = 0.0) {
-        pendingStartTimeSeconds = startTimeSeconds
+    fun castVideo(media: DetectedMedia) {
         userRequestedDisconnect.set(false)
         acquireStreamingLocks()
         refreshProxyEndpoint()
@@ -628,7 +625,7 @@ class TvCastManager private constructor(
             it.copy(
                 activeMedia = media,
                 activeStreamUrl = streamUrlToCast,
-                currentPositionSeconds = startTimeSeconds.coerceAtLeast(0.0),
+                currentPositionSeconds = 0.0,
                 durationSeconds = 0.0
             )
         }
@@ -712,9 +709,6 @@ class TvCastManager private constructor(
             .put("requestId", requestIdCounter.getAndIncrement())
             .put("autoplay", true)
             .put("media", mediaObj)
-        if (pendingStartTimeSeconds > 1.0) {
-            loadRequest.put("currentTime", pendingStartTimeSeconds)
-        }
 
         sendCastMessage(
             namespace = NS_MEDIA,

@@ -657,17 +657,15 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                     if (expectedLength > 0 && bytes.size.toLong() != expectedLength) {
                         throw java.io.IOException("Segmento troncato: ${bytes.size} / $expectedLength byte")
                     }
-                    if (bytes.size < 64) {
-                        throw java.io.IOException("Segmento anomalo (troppo piccolo: ${bytes.size} byte)")
+                    if (bytes.isEmpty()) {
+                        throw java.io.IOException("Segmento vuoto (0 byte)")
                     }
-                    if (bytes.isNotEmpty()) {
-                        return CachedSegment(
-                            bytes = bytes,
-                            contentType = contentType,
-                            playlistId = meta?.playlistId,
-                            segmentIndex = meta?.index ?: -1
-                        )
-                    }
+                    return CachedSegment(
+                        bytes = bytes,
+                        contentType = contentType,
+                        playlistId = meta?.playlistId,
+                        segmentIndex = meta?.index ?: -1
+                    )
                 } else if (code in 400..499 && code != 429 && code != 408) {
                     return null
                 }
