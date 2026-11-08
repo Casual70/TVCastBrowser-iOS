@@ -21,6 +21,36 @@ final class WebViewControllerStore: ObservableObject {
         allowNextUserNavigation = true
         webView?.reload()
     }
+
+    func pauseWebMedia() {
+        let js = """
+            (function() {
+                try {
+                    var mediaEls = document.querySelectorAll('video, audio');
+                    for (var i = 0; i < mediaEls.length; i++) {
+                        try { mediaEls[i].pause(); } catch(e) {}
+                    }
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var j = 0; j < iframes.length; j++) {
+                        try {
+                            var doc = iframes[j].contentDocument || iframes[j].contentWindow.document;
+                            if (doc) {
+                                var ifrMedia = doc.querySelectorAll('video, audio');
+                                for (var k = 0; k < ifrMedia.length; k++) {
+                                    try { ifrMedia[k].pause(); } catch(e) {}
+                                }
+                            }
+                        } catch(e) {}
+                        try {
+                            iframes[j].contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                            iframes[j].contentWindow.postMessage('{"method":"pause"}', '*');
+                        } catch(e) {}
+                    }
+                } catch(e) {}
+            })();
+        """
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
 }
 
 struct WebViewContainer: UIViewRepresentable {
@@ -238,7 +268,7 @@ struct BrowserCastView: View {
                     currentTitle: $currentTitle,
                     isLoading: $isLoading,
                     onPopupBlocked: { host in
-                        showTemporaryBanner("Bloccata apertura esterna: \(host)")
+                        // Blocco silenzioso
                     }
                 )
                 if castManager.activeMedia != nil || castManager.connectedDevice != nil {
@@ -265,7 +295,7 @@ struct BrowserCastView: View {
                                 .font(.caption)
                                 .opacity(0.75)
                             Image(systemName: "tv.and.mediabox")
-                            Text(sniffer.detectedMediaList.isEmpty ? "Nessun video" : "\(sniffer.detectedMediaList.count) Video pronti")
+                            Text(sniffer.detectedMediaList.isEmpty ? NSLocalizedString("cast_button_no_video", comment: "") : String(format: NSLocalizedString("cast_button_multi_videos", comment: ""), sniffer.detectedMediaList.count))
                                 .fontWeight(.semibold)
                         }
                         .padding(.horizontal, 16)
@@ -302,6 +332,11 @@ struct BrowserCastView: View {
             urlInput = prefs.homeUrl
             castManager.startDiscovery()
         }
+        .onChange(of: castManager.isPlaying) { isPlaying in
+            if isPlaying {
+                webStore.pauseWebMedia()
+            }
+        }
         .sheet(isPresented: $showMediaSheet) {
             mediaSheet
         }
@@ -322,7 +357,7 @@ struct BrowserCastView: View {
                 }
 
                 HStack(spacing: 4) {
-                    TextField("Cerca o inserisci URL...", text: $urlInput)
+                    TextField(NSLocalizedString("search_or_enter_url", comment: ""), text: $urlInput)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                         .keyboardType(.URL)
@@ -345,13 +380,13 @@ struct BrowserCastView: View {
                     Button {
                         setCurrentPageAsMain()
                     } label: {
-                        Label("Imposta questa pagina come Principale", systemImage: "pin.fill")
+                        Label(NSLocalizedString("set_current_page_as_main", comment: ""), systemImage: "pin.fill")
                     }
 
                     Button {
                         navigateExplicitly(prefs.homeUrl)
                     } label: {
-                        Label("Vai alla Pagina Principale", systemImage: "house.fill")
+                        Label(NSLocalizedString("go_to_main_page", comment: ""), systemImage: "house.fill")
                     }
 
                     Divider()
@@ -361,8 +396,8 @@ struct BrowserCastView: View {
                     } label: {
                         Label(
                             prefs.domainLockEnabled
-                                ? "Blocco fuori dominio (\(prefs.lockedBaseDomain ?? "attivo")): ON"
-                                : "Blocco fuori dominio: OFF",
+                                ? String(format: NSLocalizedString("domain_lock_on", comment: ""), prefs.lockedBaseDomain ?? "")
+                                : NSLocalizedString("domain_lock_off", comment: ""),
                             systemImage: prefs.domainLockEnabled ? "lock.fill" : "lock.open"
                         )
                     }
@@ -372,15 +407,26 @@ struct BrowserCastView: View {
                     } label: {
                         Label(
                             sniffer.adBlockEnabled
-                                ? "Scudo AdBlock (\(sniffer.blockedAdsCount) bloccati): ON"
-                                : "Scudo AdBlock: OFF",
+                                ? String(format: NSLocalizedString("adblock_shield_on", comment: ""), sniffer.blockedAdsCount)
+                                : NSLocalizedString("adblock_shield_off", comment: ""),
                             systemImage: "shield.lefthalf.filled"
                         )
                     }
                 } label: {
-                    Image(systemName: isCurrentDomainLockedAsMain ? "lock.shield.fill" : "house")
-                        .foregroundColor(isCurrentDomainLockedAsMain ? .accentColor : .primary)
-                        .frame(width: 32, height: 32)
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: isCurrentDomainLockedAsMain ? "lock.shield.fill" : "house")
+                            .foregroundColor(isCurrentDomainLockedAsMain ? .accentColor : .primary)
+                            .frame(width: 32, height: 32)
+                        if sniffer.blockedAdsCount > 0 {
+                            Text("\(sniffer.blockedAdsCount > 99 ? "99+" : "\(sniffer.blockedAdsCount)")")
+                                .font(.system(size: 9, weight: .bold))
+                                .padding(3)
+                                .background(Color.accentColor)
+                                .foregroundColor(.white)
+                                .clipShape(Circle())
+                                .offset(x: 4, y: -4)
+                        }
+                    }
                 }
 
                 Button(action: { showHistorySheet = true }) {
@@ -419,7 +465,7 @@ struct BrowserCastView: View {
                     }
                 }
                 Spacer()
-                Text("v1.1.0 (#2)")
+                Text("v1.5.0 (#6)")
                     .font(.caption2.weight(.bold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
@@ -446,7 +492,7 @@ struct BrowserCastView: View {
                     .lineLimit(1)
             }
             Spacer()
-            Button(action: { castManager.togglePlayPause() }) {
+            Button(action: { webStore.pauseWebMedia(); castManager.togglePlayPause() }) {
                 Image(systemName: castManager.isPlaying ? "pause.fill" : "play.fill")
                     .font(.title3)
                     .frame(width: 36, height: 36)
@@ -472,10 +518,10 @@ struct BrowserCastView: View {
                                 .foregroundColor(.pink)
                                 .font(.title3)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Offrimi un caffè (PayPal)")
+                                Text(NSLocalizedString("donate_coffee_title", comment: ""))
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundColor(.primary)
-                                Text("Supporta lo sviluppo open source di TV Cast Browser")
+                                Text(NSLocalizedString("donate_coffee_subtitle", comment: ""))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -491,7 +537,7 @@ struct BrowserCastView: View {
                 Section {
                     Toggle(isOn: $castManager.useLocalProxy) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Proxy HTTP Locale (Referer & Cookie)")
+                            Text(NSLocalizedString("proxy_http_title", comment: ""))
                                 .font(.subheadline.weight(.medium))
                             Text(
                                 castManager.useLocalProxy
@@ -512,6 +558,7 @@ struct BrowserCastView: View {
                     } else {
                         ForEach(sniffer.detectedMediaList) { media in
                             Button {
+                                webStore.pauseWebMedia()
                                 castManager.castVideo(media)
                                 showMediaSheet = false
                             } label: {
@@ -545,7 +592,7 @@ struct BrowserCastView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !sniffer.detectedMediaList.isEmpty {
-                        Button("Pulisci") {
+                        Button(NSLocalizedString("clear_button", comment: "")) {
                             sniffer.clearDetectedMedia()
                         }
                     }
@@ -636,7 +683,7 @@ struct BrowserCastView: View {
                     if castManager.discoveredDevices.isEmpty {
                         HStack(spacing: 10) {
                             ProgressView()
-                            Text("Ricerca Smart TV / Chromecast in corso...")
+                            Text(NSLocalizedString("searching_devices", comment: ""))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
