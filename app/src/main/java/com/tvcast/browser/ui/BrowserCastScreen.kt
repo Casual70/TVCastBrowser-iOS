@@ -117,40 +117,42 @@ fun BrowserCastScreen(
         webViewRef?.goBack()
     }
 
-    fun pausePhoneWebMedia() {
+    fun captureWebMediaTimeAndPause(onComplete: (Double) -> Unit) {
         val js = """
             (function() {
+                var currentPos = 0;
                 try {
-                    var mediaEls = document.querySelectorAll('video, audio');
-                    for (var i = 0; i < mediaEls.length; i++) {
-                        try { mediaEls[i].pause(); } catch(e) {}
+                    var vids = document.querySelectorAll('video');
+                    for (var i = 0; i < vids.length; i++) {
+                        if (vids[i].currentTime > currentPos) {
+                            currentPos = vids[i].currentTime;
+                        }
+                        try { vids[i].pause(); } catch(e) {}
                     }
-                    var iframes = document.querySelectorAll('iframe');
-                    for (var j = 0; j < iframes.length; j++) {
+                    var ifrs = document.querySelectorAll('iframe');
+                    for (var j = 0; j < ifrs.length; j++) {
                         try {
-                            var doc = iframes[j].contentDocument || iframes[j].contentWindow.document;
+                            var doc = ifrs[j].contentDocument || ifrs[j].contentWindow.document;
                             if (doc) {
-                                var ifrMedia = doc.querySelectorAll('video, audio');
-                                for (var k = 0; k < ifrMedia.length; k++) {
-                                    try { ifrMedia[k].pause(); } catch(e) {}
+                                var ifrVids = doc.querySelectorAll('video');
+                                for (var k = 0; k < ifrVids.length; k++) {
+                                    if (ifrVids[k].currentTime > currentPos) {
+                                        currentPos = ifrVids[k].currentTime;
+                                    }
+                                    try { ifrVids[k].pause(); } catch(e) {}
                                 }
                             }
                         } catch(e) {}
-                        try {
-                            iframes[j].contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                            iframes[j].contentWindow.postMessage('{"method":"pause"}', '*');
-                        } catch(e) {}
                     }
                 } catch(e) {}
+                return currentPos;
             })();
         """.trimIndent()
-        webViewRef?.evaluateJavascript(js, null)
-    }
-
-    LaunchedEffect(castState.isPlaying) {
-        if (castState.isPlaying) {
-            pausePhoneWebMedia()
-        }
+        webViewRef?.evaluateJavascript(js) { res ->
+            val clean = res?.trim('"', '\'') ?: "0"
+            val sec = clean.toDoubleOrNull() ?: 0.0
+            onComplete(sec)
+        } ?: onComplete(0.0)
     }
 
     fun navigateExplicitly(rawInput: String) {
@@ -481,7 +483,7 @@ fun BrowserCastScreen(
                     durationSeconds = castState.durationSeconds,
                     onSeekTo = { castManager.seekTo(it) },
                     onSeekRelative = { castManager.seekRelative(it) },
-                    onPlayPause = { pausePhoneWebMedia(); castManager.togglePlayPause() },
+                    onPlayPause = { castManager.togglePlayPause() },
                     onStop = { castManager.stopCasting() }
                 )
             }
@@ -717,8 +719,9 @@ fun BrowserCastScreen(
                 bufferStats = castState.bufferStats,
                 onToggleLocalProxy = { castManager.setUseLocalProxy(it) },
                 onSelectMedia = { media ->
-                    pausePhoneWebMedia()
-                    castManager.castVideo(media)
+                    captureWebMediaTimeAndPause { startPos ->
+                        castManager.castVideo(media, startTimeSeconds = startPos)
+                    }
                     showMediaSheet = false
                     if (!castState.isConnected && castState.discoveredDevices.isEmpty()) {
                         showCastDevicesSheet = true

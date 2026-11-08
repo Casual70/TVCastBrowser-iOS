@@ -22,34 +22,50 @@ final class WebViewControllerStore: ObservableObject {
         webView?.reload()
     }
 
-    func pauseWebMedia() {
+    func captureWebMediaTimeAndPause(completion: @escaping (Double) -> Void) {
         let js = """
             (function() {
+                var currentPos = 0;
                 try {
-                    var mediaEls = document.querySelectorAll('video, audio');
-                    for (var i = 0; i < mediaEls.length; i++) {
-                        try { mediaEls[i].pause(); } catch(e) {}
+                    var vids = document.querySelectorAll('video');
+                    for (var i = 0; i < vids.length; i++) {
+                        if (vids[i].currentTime > currentPos) {
+                            currentPos = vids[i].currentTime;
+                        }
+                        try { vids[i].pause(); } catch(e) {}
                     }
-                    var iframes = document.querySelectorAll('iframe');
-                    for (var j = 0; j < iframes.length; j++) {
+                    var ifrs = document.querySelectorAll('iframe');
+                    for (var j = 0; j < ifrs.length; j++) {
                         try {
-                            var doc = iframes[j].contentDocument || iframes[j].contentWindow.document;
+                            var doc = ifrs[j].contentDocument || ifrs[j].contentWindow.document;
                             if (doc) {
-                                var ifrMedia = doc.querySelectorAll('video, audio');
-                                for (var k = 0; k < ifrMedia.length; k++) {
-                                    try { ifrMedia[k].pause(); } catch(e) {}
+                                var ifrVids = doc.querySelectorAll('video');
+                                for (var k = 0; k < ifrVids.length; k++) {
+                                    if (ifrVids[k].currentTime > currentPos) {
+                                        currentPos = ifrVids[k].currentTime;
+                                    }
+                                    try { ifrVids[k].pause(); } catch(e) {}
                                 }
                             }
                         } catch(e) {}
-                        try {
-                            iframes[j].contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                            iframes[j].contentWindow.postMessage('{"method":"pause"}', '*');
-                        } catch(e) {}
                     }
                 } catch(e) {}
+                return currentPos;
             })();
         """
-        webView?.evaluateJavaScript(js, completionHandler: nil)
+        guard let webView = webView else {
+            completion(0.0)
+            return
+        }
+        webView.evaluateJavaScript(js) { result, _ in
+            if let num = result as? NSNumber {
+                completion(num.doubleValue)
+            } else if let str = result as? String, let dbl = Double(str) {
+                completion(dbl)
+            } else {
+                completion(0.0)
+            }
+        }
     }
 }
 
@@ -332,11 +348,6 @@ struct BrowserCastView: View {
             urlInput = prefs.homeUrl
             castManager.startDiscovery()
         }
-        .onChange(of: castManager.isPlaying) { isPlaying in
-            if isPlaying {
-                webStore.pauseWebMedia()
-            }
-        }
         .sheet(isPresented: $showMediaSheet) {
             mediaSheet
         }
@@ -492,7 +503,7 @@ struct BrowserCastView: View {
                     .lineLimit(1)
             }
             Spacer()
-            Button(action: { webStore.pauseWebMedia(); castManager.togglePlayPause() }) {
+            Button(action: { castManager.togglePlayPause() }) {
                 Image(systemName: castManager.isPlaying ? "pause.fill" : "play.fill")
                     .font(.title3)
                     .frame(width: 36, height: 36)
@@ -558,8 +569,9 @@ struct BrowserCastView: View {
                     } else {
                         ForEach(sniffer.detectedMediaList) { media in
                             Button {
-                                webStore.pauseWebMedia()
-                                castManager.castVideo(media)
+                                webStore.captureWebMediaTimeAndPause { startPos in
+                                    castManager.castVideo(media, startTime: startPos)
+                                }
                                 showMediaSheet = false
                             } label: {
                                 HStack {

@@ -32,6 +32,7 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
     private var mediaSessionId: Int?
     private var requestIdCounter: Int = 1
     private var pendingMediaToLoad: DetectedMedia?
+    private var pendingStartTimeSeconds: Double = 0.0
 
     let streamProxy = LocalStreamProxy()
 
@@ -145,7 +146,7 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
                     self.receiveNextPacket()
                     if let pending = self.pendingMediaToLoad {
                         self.pendingMediaToLoad = nil
-                        self.castVideo(pending)
+                        self.castVideo(pending, startTime: self.pendingStartTimeSeconds)
                     }
                 case .failed(let err):
                     self.statusMessage = "Errore connessione TV: \(err.localizedDescription)"
@@ -170,7 +171,8 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
         isPlaying = false
     }
 
-    func castVideo(_ media: DetectedMedia, cookies: String? = nil) {
+    func castVideo(_ media: DetectedMedia, cookies: String? = nil, startTime: Double = 0.0) {
+        pendingStartTimeSeconds = startTime
         refreshProxyEndpoint()
         activeMedia = media
 
@@ -205,7 +207,7 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
             json: ["type": "CONNECT"]
         )
 
-        let loadPayload: [String: Any] = [
+        var loadPayload: [String: Any] = [
             "type": "LOAD",
             "requestId": nextRequestId(),
             "autoplay": true,
@@ -220,6 +222,9 @@ final class ChromecastManager: NSObject, ObservableObject, NetServiceBrowserDele
                 ]
             ]
         ]
+        if pendingStartTimeSeconds > 1.0 {
+            loadPayload["currentTime"] = pendingStartTimeSeconds
+        }
 
         sendCastJson(
             namespace: "urn:x-cast:com.google.cast.media",
