@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">Transmissão pausada em %s</string>
     <string name="fg_service_playing_text">Reproduzindo</string>
     <string name="fg_service_paused_text">Pausado</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">Guia do Usuário</string>
+    <string name="user_guide_skip">Pular</string>
+    <string name="user_guide_next">Avançar</string>
+    <string name="user_guide_back">Voltar</string>
+    <string name="user_guide_start">Começar</string>
+    <string name="user_guide_step_counter">%1$d de %2$d</string>
+    <string name="user_guide_step1_title">1. Navegar e Pesquisar</string>
+    <string name="user_guide_step1_desc">Use a barra superior para acessar qualquer site ou pesquisar vídeos, como em um navegador convencional.</string>
+    <string name="user_guide_step2_title">2. Sem Anúncios e Redirecionamentos</string>
+    <string name="user_guide_step2_desc">O AdBlock integrado e o Bloqueio de Domínio protegem você contra popups incômodos e redirecionamentos indesejados.</string>
+    <string name="user_guide_step3_title">3. Detecção Instantânea de Vídeo</string>
+    <string name="user_guide_step3_desc">Inicie o vídeo na página: o botão flutuante de Cast exibirá um selo com os fluxos encontrados (HLS .m3u8, MP4, DASH).</string>
+    <string name="user_guide_step4_title">4. Transmitir para Smart TV</string>
+    <string name="user_guide_step4_desc">Toque em Cast, escolha sua Smart TV ou Chromecast no Wi-Fi e aproveite a reprodução com 100 MB de buffer RAM local!</string>
+    <string name="menu_user_guide">Guia do Usuário</string>
 </resources>

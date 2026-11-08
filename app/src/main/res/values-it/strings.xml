@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">Trasmissione in pausa su %s</string>
     <string name="fg_service_playing_text">In riproduzione</string>
     <string name="fg_service_paused_text">In pausa</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">Guida all\'uso</string>
+    <string name="user_guide_skip">Salta</string>
+    <string name="user_guide_next">Avanti</string>
+    <string name="user_guide_back">Indietro</string>
+    <string name="user_guide_start">Inizia a guardare</string>
+    <string name="user_guide_step_counter">%1$d di %2$d</string>
+    <string name="user_guide_step1_title">1. Naviga e Cerca</string>
+    <string name="user_guide_step1_desc">Usa la barra degli indirizzi in alto per navigare su qualsiasi sito web o cercare film e video, come in un normale browser.</string>
+    <string name="user_guide_step2_title">2. Zero Pubblicità e Redirect</string>
+    <string name="user_guide_step2_desc">L\'AdBlock integrato e il Blocco Fuori Dominio proteggono la tua navigazione bloccando automaticamente pop-up molesti e redirect intrusivi.</string>
+    <string name="user_guide_step3_title">3. Rilevamento Video Istantaneo</string>
+    <string name="user_guide_step3_desc">Avvia il video nella pagina web: il pulsante fluttuante con l\'icona Cast mostrerà subito un badge con i flussi video rilevati (HLS .m3u8, MP4, DASH).</string>
+    <string name="user_guide_step4_title">4. Trasmetti sulla Smart TV</string>
+    <string name="user_guide_step4_desc">Tocca il pulsante Cast, scegli la tua Smart TV o Chromecast sulla rete Wi-Fi e goditi lo streaming con 100 MB di buffer RAM locale anti-scatto!</string>
+    <string name="menu_user_guide">Guida all\'uso</string>
 </resources>

@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">%s でキャスト一時停止中</string>
     <string name="fg_service_playing_text">再生中</string>
     <string name="fg_service_paused_text">一時停止中</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">使い方ガイド</string>
+    <string name="user_guide_skip">スキップ</string>
+    <string name="user_guide_next">次へ</string>
+    <string name="user_guide_back">戻る</string>
+    <string name="user_guide_start">使ってみる</string>
+    <string name="user_guide_step_counter">%1$d / %2$d</string>
+    <string name="user_guide_step1_title">1. 閲覧と検索</string>
+    <string name="user_guide_step1_desc">上部のアドレスバーを使用して、通常のブラウザと同じようにWebサイトを閲覧・検索できます。</string>
+    <string name="user_guide_step2_title">2. 広告とリダイレクトのブロック</string>
+    <string name="user_guide_step2_desc">内蔵の広告ブロッカーとドメインロックにより、煩わしいポップアップや不要なリダイレクトを自動的に防止します。</string>
+    <string name="user_guide_step3_title">3. 即座に動画を検出</string>
+    <string name="user_guide_step3_desc">ページ上で動画を再生すると、浮動キャストボタンが検出された動画（HLS .m3u8、MP4、DASH）をバッジで表示します。</string>
+    <string name="user_guide_step4_title">4. スマートテレビにキャスト</string>
+    <string name="user_guide_step4_desc">キャストボタンをタップし、同じWi-Fi上のテレビを選択すれば、100MBのRAMバッファでスムーズな再生を楽しめます！</string>
+    <string name="menu_user_guide">使い方ガイド</string>
 </resources>

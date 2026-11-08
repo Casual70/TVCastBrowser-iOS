@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">Übertragung pausiert auf %s</string>
     <string name="fg_service_playing_text">Wiedergabe</string>
     <string name="fg_service_paused_text">Pausiert</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">Bedienungsanleitung</string>
+    <string name="user_guide_skip">Überspringen</string>
+    <string name="user_guide_next">Weiter</string>
+    <string name="user_guide_back">Zurück</string>
+    <string name="user_guide_start">Loslegen</string>
+    <string name="user_guide_step_counter">%1$d von %2$d</string>
+    <string name="user_guide_step1_title">1. Surfen &amp; Suchen</string>
+    <string name="user_guide_step1_desc">Verwende die Adressleiste oben, um Webseiten aufzurufen oder nach Videos zu suchen, genau wie in einem normalen Browser.</string>
+    <string name="user_guide_step2_title">2. Werbe- &amp; Popup-Schutz</string>
+    <string name="user_guide_step2_desc">Der integrierte AdBlock und die Domainsperre blockieren lästige Popups und unerwünschte Weiterleitungen automatisch.</string>
+    <string name="user_guide_step3_title">3. Sofortige Videoerkennung</string>
+    <string name="user_guide_step3_desc">Starte ein Video auf der Webseite: Die schwebende Cast-Schaltfläche zeigt sofort gefundene Streams an (HLS .m3u8, MP4, DASH).</string>
+    <string name="user_guide_step4_title">4. Auf Smart TV übertragen</string>
+    <string name="user_guide_step4_desc">Tippe auf Cast, wähle deinen Smart TV oder Chromecast im WLAN aus und genieße ruckelfreies Streaming mit 100 MB RAM-Puffer!</string>
+    <string name="menu_user_guide">Bedienungsanleitung</string>
 </resources>

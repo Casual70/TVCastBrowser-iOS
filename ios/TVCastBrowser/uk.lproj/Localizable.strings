@@ -38,3 +38,20 @@
 "cast_button_no_video" = "Відео не знайдено";
 "cast_button_multi_videos" = "%d Відео готові";
 "close" = "Закрити";
+
+/* User Guide */
+"user_guide_title" = "Посібник користувача";
+"user_guide_skip" = "Пропустити";
+"user_guide_next" = "Далі";
+"user_guide_back" = "Назад";
+"user_guide_start" = "Почати";
+"user_guide_step_counter" = "%d з %d";
+"user_guide_step1_title" = "1. Перегляд та пошук";
+"user_guide_step1_desc" = "Використовуйте рядок пошуку вгорі для перегляду веб-сайтів або пошуку відео, як у звичайному браузері.";
+"user_guide_step2_title" = "2. Захист від реклами";
+"user_guide_step2_desc" = "Вбудований AdBlock та блокування сторонніх доменів автоматично блокують настирливі спливаючі вікна та перенаправлення.";
+"user_guide_step3_title" = "3. Миттєве виявлення відео";
+"user_guide_step3_desc" = "Увімкніть відтворення відео на сторінці: плаваюча кнопка Cast одразу покаже знайдені потоки (HLS .m3u8, MP4, DASH).";
+"user_guide_step4_title" = "4. Трансляція на Smart TV";
+"user_guide_step4_desc" = "Натисніть Cast, оберіть Smart TV або Chromecast у мережі Wi-Fi та насолоджуйтеся плавним переглядом із буфером RAM до 100 МБ!";
+"menu_user_guide" = "Посібник користувача";

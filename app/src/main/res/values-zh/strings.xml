@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">在 %s 上的投屏已暂停</string>
     <string name="fg_service_playing_text">播放中</string>
     <string name="fg_service_paused_text">已暂停</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">使用指南</string>
+    <string name="user_guide_skip">跳过</string>
+    <string name="user_guide_next">下一步</string>
+    <string name="user_guide_back">返回</string>
+    <string name="user_guide_start">开始使用</string>
+    <string name="user_guide_step_counter">第 %1$d 步，共 %2$d 步</string>
+    <string name="user_guide_step1_title">1. 浏览与搜索</string>
+    <string name="user_guide_step1_desc">使用顶部地址栏浏览任何网站或搜索视频，如同使用普通浏览器一样简单。</string>
+    <string name="user_guide_step2_title">2. 拦截广告与恶意跳转</string>
+    <string name="user_guide_step2_desc">内置广告拦截与域名锁定功能，自动拦截烦人的弹窗和恶意跳转。</string>
+    <string name="user_guide_step3_title">3. 即时视频检测</string>
+    <string name="user_guide_step3_desc">在网页中播放视频，右下角的浮动投屏按钮会立即提示已嗅探到的流媒体（HLS .m3u8、MP4、DASH）。</string>
+    <string name="user_guide_step4_title">4. 投屏至电视</string>
+    <string name="user_guide_step4_desc">点击投屏，选择同一Wi-Fi网络下的智能电视或Chromecast，享受高达100MB内存预缓冲带来的流畅播放！</string>
+    <string name="menu_user_guide">使用指南</string>
 </resources>

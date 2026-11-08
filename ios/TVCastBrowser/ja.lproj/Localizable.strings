@@ -38,3 +38,20 @@
 "cast_button_no_video" = "動画なし";
 "cast_button_multi_videos" = "%d 本の動画準備完了";
 "close" = "閉じる";
+
+/* User Guide */
+"user_guide_title" = "使い方ガイド";
+"user_guide_skip" = "スキップ";
+"user_guide_next" = "次へ";
+"user_guide_back" = "戻る";
+"user_guide_start" = "使ってみる";
+"user_guide_step_counter" = "%d / %d";
+"user_guide_step1_title" = "1. 閲覧と検索";
+"user_guide_step1_desc" = "上部のアドレスバーを使用して、通常のブラウザと同じようにWebサイトを閲覧・検索できます。";
+"user_guide_step2_title" = "2. 広告とリダイレクトのブロック";
+"user_guide_step2_desc" = "内蔵の広告ブロッカーとドメインロックにより、煩わしいポップアップや不要なリダイレクトを自動的に防止します。";
+"user_guide_step3_title" = "3. 即座に動画を検出";
+"user_guide_step3_desc" = "ページ上で動画を再生すると、浮動キャストボタンが検出された動画（HLS .m3u8、MP4、DASH）をバッジで表示します。";
+"user_guide_step4_title" = "4. スマートテレビにキャスト";
+"user_guide_step4_desc" = "キャストボタンをタップし、同じWi-Fi上のテレビを選択すれば、100MBのRAMバッファでスムーズな再生を楽しめます！";
+"menu_user_guide" = "使い方ガイド";

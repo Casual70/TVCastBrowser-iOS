@@ -254,6 +254,7 @@ struct BrowserCastView: View {
     @State private var showMediaSheet = false
     @State private var showHistorySheet = false
     @State private var showCastDevicesSheet = false
+    @State private var showGuideSheet = false
     @State private var bannerMessage: String?
     @State private var fabOffset: CGSize = .zero
     @State private var fabDragTranslation: CGSize = .zero
@@ -351,6 +352,9 @@ struct BrowserCastView: View {
             currentUrl = prefs.homeUrl
             urlInput = prefs.homeUrl
             castManager.startDiscovery()
+            if !prefs.hasSeenOnboarding {
+                showGuideSheet = true
+            }
         }
         .sheet(isPresented: $showMediaSheet) {
             mediaSheet
@@ -360,6 +364,11 @@ struct BrowserCastView: View {
         }
         .sheet(isPresented: $showCastDevicesSheet) {
             castDevicesSheet
+        }
+        .sheet(isPresented: $showGuideSheet) {
+            UserGuideView {
+                prefs.setOnboardingSeen(true)
+            }
         }
     }
 
@@ -426,6 +435,14 @@ struct BrowserCastView: View {
                                 : NSLocalizedString("adblock_shield_off", comment: ""),
                             systemImage: "shield.lefthalf.filled"
                         )
+                    }
+
+                    Divider()
+
+                    Button {
+                        showGuideSheet = true
+                    } label: {
+                        Label(NSLocalizedString("menu_user_guide", comment: ""), systemImage: "questionmark.circle")
                     }
                 } label: {
                     ZStack(alignment: .topTrailing) {

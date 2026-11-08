@@ -37,6 +37,16 @@ class BrowserPreferences(context: Context) {
     private val _recentHistory = MutableStateFlow(loadHistoryFromPrefs())
     val recentHistory: StateFlow<List<HistoryItem>> = _recentHistory.asStateFlow()
 
+    private val _hasSeenOnboarding = MutableStateFlow(
+        prefs.getBoolean(KEY_HAS_SEEN_ONBOARDING, false)
+    )
+    val hasSeenOnboarding: StateFlow<Boolean> = _hasSeenOnboarding.asStateFlow()
+
+    fun setOnboardingSeen(seen: Boolean = true) {
+        prefs.edit().putBoolean(KEY_HAS_SEEN_ONBOARDING, seen).apply()
+        _hasSeenOnboarding.value = seen
+    }
+
     /**
      * Imposta l'URL fornito come nuova Pagina Principale e attiva il blocco sul suo dominio.
      */
@@ -154,6 +164,7 @@ class BrowserPreferences(context: Context) {
         private const val KEY_HOME_URL = "home_url"
         private const val KEY_DOMAIN_LOCK_ENABLED = "domain_lock_enabled"
         private const val KEY_RECENT_HISTORY = "recent_history_json"
+        private const val KEY_HAS_SEEN_ONBOARDING = "has_seen_onboarding"
 
         const val DEFAULT_HOME_URL = "https://www.google.com"
         const val MAX_HISTORY_ITEMS = 20

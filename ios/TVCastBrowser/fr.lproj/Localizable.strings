@@ -38,3 +38,20 @@
 "cast_button_no_video" = "Aucune vidéo";
 "cast_button_multi_videos" = "%d Vidéos prêtes";
 "close" = "Fermer";
+
+/* User Guide */
+"user_guide_title" = "Guide d'utilisation";
+"user_guide_skip" = "Passer";
+"user_guide_next" = "Suivant";
+"user_guide_back" = "Retour";
+"user_guide_start" = "Commencer";
+"user_guide_step_counter" = "%d sur %d";
+"user_guide_step1_title" = "1. Naviguer et rechercher";
+"user_guide_step1_desc" = "Utilisez la barre d'adresse en haut pour parcourir des sites web ou rechercher des vidéos, comme dans un navigateur classique.";
+"user_guide_step2_title" = "2. Protection contre les pubs";
+"user_guide_step2_desc" = "L'AdBlock intégré et le verrouillage de domaine bloquent automatiquement les fenêtres contextuelles et les redirections intrusives.";
+"user_guide_step3_title" = "3. Détection vidéo instantanée";
+"user_guide_step3_desc" = "Lancez une vidéo sur la page : le bouton Cast flottant affichera immédiatement les flux détectés (HLS .m3u8, MP4, DASH).";
+"user_guide_step4_title" = "4. Diffuser sur Smart TV";
+"user_guide_step4_desc" = "Sélectionnez votre Smart TV ou Chromecast sur le Wi-Fi et profitez d'une lecture fluide avec un tampon RAM local de 100 Mo !";
+"menu_user_guide" = "Guide d'utilisation";

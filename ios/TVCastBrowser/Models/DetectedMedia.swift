@@ -70,10 +70,12 @@ final class BrowserPreferences: ObservableObject {
     private let homeUrlKey = "tv_cast_home_url"
     private let domainLockKey = "tv_cast_domain_lock_enabled"
     private let historyKey = "tv_cast_recent_history"
+    private let onboardingKey = "tv_cast_has_seen_onboarding"
 
     @Published private(set) var homeUrl: String
     @Published private(set) var domainLockEnabled: Bool
     @Published private(set) var recentHistory: [HistoryItem]
+    @Published private(set) var hasSeenOnboarding: Bool
 
     init() {
         let defaults = UserDefaults.standard
@@ -83,12 +85,18 @@ final class BrowserPreferences: ObservableObject {
         } else {
             self.domainLockEnabled = defaults.bool(forKey: domainLockKey)
         }
+        self.hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
         if let data = defaults.data(forKey: historyKey),
            let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
             self.recentHistory = Array(decoded.prefix(Self.maxHistoryItems))
         } else {
             self.recentHistory = []
         }
+    }
+
+    func setOnboardingSeen(_ seen: Bool = true) {
+        hasSeenOnboarding = seen
+        UserDefaults.standard.set(seen, forKey: onboardingKey)
     }
 
     func setHomePage(_ url: String, enableDomainLock: Bool = true) {

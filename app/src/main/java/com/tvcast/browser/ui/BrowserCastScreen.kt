@@ -104,6 +104,9 @@ fun BrowserCastScreen(
     var showCastDevicesSheet by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
 
+    val hasSeenOnboarding by browserPrefs.hasSeenOnboarding.collectAsState()
+    var showGuideDialog by remember { mutableStateOf(!hasSeenOnboarding) }
+
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var allowNextUserNavigation by remember { mutableStateOf(false) }
 
@@ -117,16 +120,12 @@ fun BrowserCastScreen(
         webViewRef?.goBack()
     }
 
-    fun captureWebMediaTimeAndPause(onComplete: (Double) -> Unit) {
+    fun pausePhoneWebMedia() {
         val js = """
             (function() {
-                var currentPos = 0;
                 try {
-                    var vids = document.querySelectorAll('video');
+                    var vids = document.querySelectorAll('video, audio');
                     for (var i = 0; i < vids.length; i++) {
-                        if (vids[i].currentTime > currentPos) {
-                            currentPos = vids[i].currentTime;
-                        }
                         try { vids[i].pause(); } catch(e) {}
                     }
                     var ifrs = document.querySelectorAll('iframe');
@@ -134,25 +133,17 @@ fun BrowserCastScreen(
                         try {
                             var doc = ifrs[j].contentDocument || ifrs[j].contentWindow.document;
                             if (doc) {
-                                var ifrVids = doc.querySelectorAll('video');
+                                var ifrVids = doc.querySelectorAll('video, audio');
                                 for (var k = 0; k < ifrVids.length; k++) {
-                                    if (ifrVids[k].currentTime > currentPos) {
-                                        currentPos = ifrVids[k].currentTime;
-                                    }
                                     try { ifrVids[k].pause(); } catch(e) {}
                                 }
                             }
                         } catch(e) {}
                     }
                 } catch(e) {}
-                return currentPos;
             })();
         """.trimIndent()
-        webViewRef?.evaluateJavascript(js) { res ->
-            val clean = res?.trim('"', '\'') ?: "0"
-            val sec = clean.toDoubleOrNull() ?: 0.0
-            onComplete(sec)
-        } ?: onComplete(0.0)
+        webViewRef?.evaluateJavascript(js, null)
     }
 
     fun navigateExplicitly(rawInput: String) {
@@ -365,6 +356,24 @@ fun BrowserCastScreen(
                                             adBlockEnabled = !adBlockEnabled
                                             sniffer.adBlockEnabled = adBlockEnabled
                                             showHomeMenu = false
+                                        }
+                                    )
+
+                                    HorizontalDivider()
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(stringResource(R.string.menu_user_guide))
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Info,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showHomeMenu = false
+                                            showGuideDialog = true
                                         }
                                     )
                                 }
@@ -719,9 +728,8 @@ fun BrowserCastScreen(
                 bufferStats = castState.bufferStats,
                 onToggleLocalProxy = { castManager.setUseLocalProxy(it) },
                 onSelectMedia = { media ->
-                    captureWebMediaTimeAndPause { startPos ->
-                        castManager.castVideo(media, startTimeSeconds = startPos)
-                    }
+                    pausePhoneWebMedia()
+                    castManager.castVideo(media)
                     showMediaSheet = false
                     if (!castState.isConnected && castState.discoveredDevices.isEmpty()) {
                         showCastDevicesSheet = true
@@ -730,6 +738,16 @@ fun BrowserCastScreen(
                 onClearAll = { sniffer.clearDetectedMedia() }
             )
         }
+    }
+
+    // Dialog Guida all'uso (Onboarding / Primo Avvio o da Menu)
+    if (showGuideDialog) {
+        UserGuideDialog(
+            onDismiss = {
+                browserPrefs.setOnboardingSeen(true)
+                showGuideDialog = false
+            }
+        )
     }
 
     // BottomSheet Cronologia Recenti (max 20 siti) + Pagina Principale

@@ -55,4 +55,21 @@
     <string name="fg_service_paused_title">تم إيقاف البث مؤقتًا على %s</string>
     <string name="fg_service_playing_text">قيد التشغيل</string>
     <string name="fg_service_paused_text">متوقف مؤقتًا</string>
+
+    <!-- User Guide -->
+    <string name="user_guide_title">دليل الاستخدام</string>
+    <string name="user_guide_skip">تخطي</string>
+    <string name="user_guide_next">التالي</string>
+    <string name="user_guide_back">السابق</string>
+    <string name="user_guide_start">ابدأ الآن</string>
+    <string name="user_guide_step_counter">%1$d من %2$d</string>
+    <string name="user_guide_step1_title">1. التصفح والبحث</string>
+    <string name="user_guide_step1_desc">استخدم شريط العناوين في الأعلى لتصفح أي موقع ويب أو البحث عن مقاطع الفيديو تمامًا كأي متصفح عادي.</string>
+    <string name="user_guide_step2_title">2. حجب الإعلانات والتوجيهات</string>
+    <string name="user_guide_step2_desc">يقوم مانع الإعلانات المدمج وقفل النطاق بحظر النوافذ المنبثقة المزعجة وإعادة التوجيه الإجباري تلقائيًا.</string>
+    <string name="user_guide_step3_title">3. اكتشاف فوري للفيديو</string>
+    <string name="user_guide_step3_desc">ابدأ تشغيل أي فيديو في الصفحة، وسيظهر زر البث العائم عدادًا بالوسائط المكتشفة (HLS .m3u8 و MP4 و DASH).</string>
+    <string name="user_guide_step4_title">4. البث إلى التلفاز الذكي</string>
+    <string name="user_guide_step4_desc">انقر على زر البث واختر جهاز التلفاز أو Chromecast على شبكة Wi-Fi واستمتع بتشغيل فائق السلاسة مع تخزين مؤقت يصل إلى 100 ميجابايت!</string>
+    <string name="menu_user_guide">دليل الاستخدام</string>
 </resources>
