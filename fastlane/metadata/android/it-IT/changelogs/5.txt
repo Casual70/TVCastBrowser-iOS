@@ -1,0 +1,1 @@
+v1.4.0: Buffer sequenziale intelligente anti-salti per Chromecast (risolti i salti di 2-3 secondi durante la riproduzione in streaming), pausa automatica del player sul telefono all'avvio del cast, contatore silenzioso dei siti e pop-up intrusivi bloccati direttamente nel menu con lucchetto senza messaggi invasivi sopra i controlli di riproduzione.

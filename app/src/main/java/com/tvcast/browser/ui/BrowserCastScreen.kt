@@ -83,7 +83,7 @@ fun BrowserCastScreen(
             }
             "v${pInfo.versionName} (#$vCode)"
         } catch (_: Exception) {
-            "v1.3.0 (#4)"
+            "v1.4.0 (#5)"
         }
     }
     val focusManager = LocalFocusManager.current
@@ -112,6 +112,42 @@ fun BrowserCastScreen(
 
     BackHandler(enabled = webViewRef?.canGoBack() == true) {
         webViewRef?.goBack()
+    }
+
+    fun pausePhoneWebMedia() {
+        val js = """
+            (function() {
+                try {
+                    var mediaEls = document.querySelectorAll('video, audio');
+                    for (var i = 0; i < mediaEls.length; i++) {
+                        try { mediaEls[i].pause(); } catch(e) {}
+                    }
+                    var iframes = document.querySelectorAll('iframe');
+                    for (var j = 0; j < iframes.length; j++) {
+                        try {
+                            var doc = iframes[j].contentDocument || iframes[j].contentWindow.document;
+                            if (doc) {
+                                var ifrMedia = doc.querySelectorAll('video, audio');
+                                for (var k = 0; k < ifrMedia.length; k++) {
+                                    try { ifrMedia[k].pause(); } catch(e) {}
+                                }
+                            }
+                        } catch(e) {}
+                        try {
+                            iframes[j].contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                            iframes[j].contentWindow.postMessage('{"method":"pause"}', '*');
+                        } catch(e) {}
+                    }
+                } catch(e) {}
+            })();
+        """.trimIndent()
+        webViewRef?.evaluateJavascript(js, null)
+    }
+
+    LaunchedEffect(castState.isPlaying) {
+        if (castState.isPlaying) {
+            pausePhoneWebMedia()
+        }
     }
 
     fun navigateExplicitly(rawInput: String) {
@@ -204,15 +240,31 @@ fun BrowserCastScreen(
                                     onClick = { showHomeMenu = true },
                                     modifier = Modifier.size(40.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = if (isCurrentDomainLockedAsMain) Icons.Default.Lock else Icons.Default.Home,
-                                        contentDescription = "Pagina Principale e Blocco Dominio",
-                                        tint = if (isCurrentDomainLockedAsMain) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
+                                    BadgedBox(
+                                        badge = {
+                                            if (blockedAdsCount > 0) {
+                                                Badge(
+                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                                ) {
+                                                    Text(
+                                                        text = if (blockedAdsCount > 99) "99+" else "$blockedAdsCount",
+                                                        style = MaterialTheme.typography.labelSmall
+                                                    )
+                                                }
+                                            }
                                         }
-                                    )
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isCurrentDomainLockedAsMain) Icons.Default.Lock else Icons.Default.Home,
+                                            contentDescription = "Pagina Principale e Blocco Dominio",
+                                            tint = if (isCurrentDomainLockedAsMain) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            }
+                                        )
+                                    }
                                 }
 
                                 DropdownMenu(
@@ -261,13 +313,22 @@ fun BrowserCastScreen(
 
                                     DropdownMenuItem(
                                         text = {
-                                            Text(
-                                                if (domainLockEnabled) {
-                                                    "Blocco fuori dominio (${lockedBaseDomain ?: "attivo"}): ON"
-                                                } else {
-                                                    "Blocco fuori dominio: OFF"
+                                            Column {
+                                                Text(
+                                                    if (domainLockEnabled) {
+                                                        "Blocco fuori dominio (${lockedBaseDomain ?: "attivo"}): ON"
+                                                    } else {
+                                                        "Blocco fuori dominio: OFF"
+                                                    }
+                                                )
+                                                if (blockedAdsCount > 0) {
+                                                    Text(
+                                                        text = "$blockedAdsCount elementi intrusivi bloccati",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
                                                 }
-                                            )
+                                            }
                                         },
                                         leadingIcon = {
                                             Icon(
@@ -417,7 +478,7 @@ fun BrowserCastScreen(
                     durationSeconds = castState.durationSeconds,
                     onSeekTo = { castManager.seekTo(it) },
                     onSeekRelative = { castManager.seekRelative(it) },
-                    onPlayPause = { castManager.togglePlayPause() },
+                    onPlayPause = { pausePhoneWebMedia(); castManager.togglePlayPause() },
                     onStop = { castManager.stopCasting() }
                 )
             }
@@ -493,13 +554,7 @@ fun BrowserCastScreen(
 
                                 if (!browserPrefs.isUrlAllowedByDomainLock(targetUrl)) {
                                     sniffer.incrementBlockedPopup()
-                                    val blockedHost = targetUri.host ?: targetUrl
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            message = "Bloccato redirect esterno: $blockedHost",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    }
+                                    // Blocco silenzioso: conteggiato nel badge del lucchetto senza coprire i comandi del player
                                     return true
                                 }
 
@@ -589,14 +644,7 @@ fun BrowserCastScreen(
                                             parentWebView.loadUrl(popupUrl)
                                         } else {
                                             sniffer.incrementBlockedPopup()
-                                            if (popupDomain != null) {
-                                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        message = "Bloccata nuova scheda esterna: $popupDomain",
-                                                        duration = SnackbarDuration.Short
-                                                    )
-                                                }
-                                            }
+                                            // Blocco silenzioso: conteggiato nel badge del lucchetto senza coprire i comandi del player
                                         }
                                         return true
                                     }
@@ -666,6 +714,7 @@ fun BrowserCastScreen(
                 bufferStats = castState.bufferStats,
                 onToggleLocalProxy = { castManager.setUseLocalProxy(it) },
                 onSelectMedia = { media ->
+                    pausePhoneWebMedia()
                     castManager.castVideo(media)
                     showMediaSheet = false
                     if (!castState.isConnected && castState.discoveredDevices.isEmpty()) {

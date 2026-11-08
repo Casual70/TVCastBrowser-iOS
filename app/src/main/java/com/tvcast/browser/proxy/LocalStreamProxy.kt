@@ -89,7 +89,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     private val isRunning = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
     private val clientExecutor = Executors.newCachedThreadPool()
-    private val prefetchExecutor = Executors.newFixedThreadPool(4)
+    private val prefetchExecutor = Executors.newSingleThreadExecutor()
     private val warmupTimerExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
     private val sessions = ConcurrentHashMap<String, ProxySessionConfig>()
@@ -97,15 +97,8 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     // Cache LRU in RAM dei segmenti video/audio pre-scaricati (fino a 100 MB)
     private val cacheLock = Any()
     private var currentCacheBytes: Long = 0L
-    private val segmentCache = object : LinkedHashMap<String, CachedSegment>(128, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSegment>?): Boolean {
-            val shouldEvict = size > MAX_CACHED_SEGMENTS || currentCacheBytes > MAX_CACHE_BYTES
-            if (shouldEvict && eldest != null) {
-                currentCacheBytes = (currentCacheBytes - eldest.value.bytes.size).coerceAtLeast(0L)
-            }
-            return shouldEvict
-        }
-    }
+    private val segmentCache = LinkedHashMap<String, CachedSegment>()
+    private val prefetchEpoch = AtomicLong(0L)
 
     // Download attualmente in corso (deduplicazione tra richiesta TV e Pre-Fetcher)
     private val inFlightSegments = ConcurrentHashMap<String, CompletableFuture<CachedSegment?>>()
@@ -197,6 +190,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
     }
 
     fun clearBufferCache() {
+        prefetchEpoch.incrementAndGet()
         synchronized(cacheLock) {
             segmentCache.clear()
             currentCacheBytes = 0L
@@ -216,6 +210,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
      * e riavvia il timer di stabilità di 30 secondi se la nuova posizione è fuori buffer.
      */
     fun notifyManualSeek() {
+        prefetchEpoch.incrementAndGet()
         sequentialStartTimeMs.set(System.currentTimeMillis())
         updateStatsFlow()
     }
@@ -418,6 +413,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                 // riavvia il timer di 30 secondi e libera i vecchi segmenti precedenti al nuovo punto
                 Log.i(TAG, "Rilevato salto/seek manuale (segmento $prevIndex -> ${meta.index}): attendo 30s di stabilità")
                 sequentialStartTimeMs.set(System.currentTimeMillis())
+                prefetchEpoch.incrementAndGet()
                 evictSegmentsBefore(meta.playlistId, meta.index - 1)
             } else {
                 // Riproduzione sequenziale normale: libera i segmenti già riprodotti (più vecchi di 2 posizioni)
@@ -435,8 +431,8 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             // Riproduzione stabile da >= 30s: pre-carica fino a READ_AHEAD_SEGMENTS (fino a 100 MB)!
             triggerReadAheadForSegment(targetUrl, sessionConfig, maxCount = READ_AHEAD_SEGMENTS)
         } else {
-            // Primi 30s (fase scelta punto video): pre-carica solo 1 segmento successivo per fluidità immediata
-            triggerReadAheadForSegment(targetUrl, sessionConfig, maxCount = 1)
+            // Primi 30s (fase scelta punto video): pre-carica 2 segmenti successivi per fluidità immediata
+            triggerReadAheadForSegment(targetUrl, sessionConfig, maxCount = 2)
         }
         updateStatsFlow()
 
@@ -531,28 +527,23 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
         urls: List<String>,
         sessionConfig: ProxySessionConfig?
     ) {
-        for (nextUrl in urls) {
-            val canSchedule = synchronized(cacheLock) {
-                !segmentCache.containsKey(nextUrl) && currentCacheBytes < MAX_CACHE_BYTES
-            }
-            if (!canSchedule || inFlightSegments.containsKey(nextUrl)) continue
+        val epoch = prefetchEpoch.get()
+        prefetchExecutor.execute {
+            for (nextUrl in urls) {
+                if (prefetchEpoch.get() != epoch) break
+                val canSchedule = synchronized(cacheLock) {
+                    !segmentCache.containsKey(nextUrl) && currentCacheBytes < MAX_CACHE_BYTES
+                }
+                if (!canSchedule) continue
 
-            prefetchExecutor.execute {
+                activePrefetchCount.set(1)
+                updateStatsFlow()
                 try {
-                    val shouldDownload = synchronized(cacheLock) {
-                        !segmentCache.containsKey(nextUrl) && currentCacheBytes < MAX_CACHE_BYTES
-                    }
-                    if (!shouldDownload || inFlightSegments.containsKey(nextUrl)) return@execute
-
-                    activePrefetchCount.incrementAndGet()
-                    updateStatsFlow()
-                    try {
-                        getOrFetchSegment(nextUrl, sessionConfig)
-                    } finally {
-                        activePrefetchCount.decrementAndGet()
-                        updateStatsFlow()
-                    }
+                    getOrFetchSegment(nextUrl, sessionConfig)
                 } catch (_: Throwable) {
+                } finally {
+                    activePrefetchCount.set(0)
+                    updateStatsFlow()
                 }
             }
         }
@@ -566,29 +557,59 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
             segmentCache[targetUrl]?.let { return it }
         }
 
-        var createdByUs = false
-        val future = inFlightSegments.computeIfAbsent(targetUrl) {
-            createdByUs = true
-            CompletableFuture<CachedSegment?>()
+        val inFlightFuture = inFlightSegments[targetUrl]
+        if (inFlightFuture != null) {
+            try {
+                val res = inFlightFuture.get(25, TimeUnit.SECONDS)
+                if (res != null) return res
+            } catch (_: Throwable) {
+            }
         }
 
-        if (createdByUs) {
+        var myFuture: CompletableFuture<CachedSegment?>? = null
+        val shouldDownloadDirectly: Boolean
+        synchronized(inFlightSegments) {
+            val current = inFlightSegments[targetUrl]
+            if (current == null || current.isDone || current.isCompletedExceptionally) {
+                val newFut = CompletableFuture<CachedSegment?>()
+                inFlightSegments[targetUrl] = newFut
+                myFuture = newFut
+                shouldDownloadDirectly = true
+            } else {
+                myFuture = current
+                shouldDownloadDirectly = false
+            }
+        }
+
+        if (shouldDownloadDirectly) {
             try {
-                val downloaded = downloadSegmentWithRetry(targetUrl, sessionConfig, maxAttempts = 3)
+                val downloaded = downloadSegmentWithRetry(targetUrl, sessionConfig, maxAttempts = 4)
                 if (downloaded != null) {
                     putSegmentInCache(targetUrl, downloaded)
+                    myFuture?.complete(downloaded)
+                    return downloaded
+                } else {
+                    myFuture?.complete(null)
+                    return null
                 }
-                future.complete(downloaded)
-                return downloaded
             } catch (t: Throwable) {
-                future.complete(null)
+                myFuture?.complete(null)
                 return null
             } finally {
                 inFlightSegments.remove(targetUrl)
             }
         } else {
             return try {
-                future.get(25, TimeUnit.SECONDS)
+                val res = myFuture?.get(25, TimeUnit.SECONDS)
+                if (res != null) {
+                    res
+                } else {
+                    val retryDownloaded = downloadSegmentWithRetry(targetUrl, sessionConfig, maxAttempts = 2)
+                    if (retryDownloaded != null) {
+                        putSegmentInCache(targetUrl, retryDownloaded)
+                    }
+                    retryDownloaded
+                }
             } catch (_: Throwable) {
                 null
             }
@@ -619,6 +640,7 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                     val bos = ByteArrayOutputStream(
                         if (expectedLength in 1..(16 * 1024 * 1024)) expectedLength.toInt() else 512 * 1024
                     )
+                    var readCompleted = false
                     rawInput.use { input ->
                         val buf = ByteArray(32 * 1024)
                         var n = input.read(buf)
@@ -626,10 +648,17 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                             bos.write(buf, 0, n)
                             n = input.read(buf)
                         }
+                        readCompleted = true
+                    }
+                    if (!readCompleted) {
+                        throw java.io.IOException("Stream terminato prima dell'EOF completo")
                     }
                     val bytes = bos.toByteArray()
                     if (expectedLength > 0 && bytes.size.toLong() != expectedLength) {
                         throw java.io.IOException("Segmento troncato: ${bytes.size} / $expectedLength byte")
+                    }
+                    if (bytes.size < 64) {
+                        throw java.io.IOException("Segmento anomalo (troppo piccolo: ${bytes.size} byte)")
                     }
                     if (bytes.isNotEmpty()) {
                         return CachedSegment(
@@ -673,15 +702,40 @@ class LocalStreamProxy(private val preferredPort: Int = 8765) {
                 currentCacheBytes = (currentCacheBytes - previous.bytes.size).coerceAtLeast(0L)
             }
             currentCacheBytes += segment.bytes.size
-            while (currentCacheBytes > MAX_CACHE_BYTES && segmentCache.isNotEmpty()) {
-                val firstKey = segmentCache.keys.firstOrNull() ?: break
-                val removed = segmentCache.remove(firstKey)
-                if (removed != null) {
-                    currentCacheBytes = (currentCacheBytes - removed.bytes.size).coerceAtLeast(0L)
-                }
-            }
+            enforceCacheLimitLocked()
         }
         updateStatsFlow()
+    }
+
+    private fun enforceCacheLimitLocked() {
+        while ((currentCacheBytes > MAX_CACHE_BYTES || segmentCache.size > MAX_CACHED_SEGMENTS) && segmentCache.isNotEmpty()) {
+            var candidateKey: String? = null
+            for ((key, seg) in segmentCache) {
+                val plId = seg.playlistId
+                val lastIndex = if (plId != null) lastIndexByPlaylist[plId] ?: -1 else -1
+                if (lastIndex >= 0 && seg.segmentIndex in 0 until (lastIndex - 2)) {
+                    candidateKey = key
+                    break
+                }
+            }
+            if (candidateKey == null) {
+                var maxFutureDistance = -1
+                for ((key, seg) in segmentCache) {
+                    val plId = seg.playlistId
+                    val lastIndex = if (plId != null) lastIndexByPlaylist[plId] ?: -1 else -1
+                    val distance = if (lastIndex >= 0) seg.segmentIndex - lastIndex else 0
+                    if (distance > maxFutureDistance) {
+                        maxFutureDistance = distance
+                        candidateKey = key
+                    }
+                }
+            }
+            val keyToRemove = candidateKey ?: segmentCache.keys.firstOrNull() ?: break
+            val removed = segmentCache.remove(keyToRemove)
+            if (removed != null) {
+                currentCacheBytes = (currentCacheBytes - removed.bytes.size).coerceAtLeast(0L)
+            }
+        }
     }
 
     private fun updateStatsFlow() {

@@ -1,0 +1,1 @@
+v1.4.0: Smart sequential buffering preventing 2-3s playback skips on Chromecast, automatic phone web player pause when casting starts, silent intrusive popup/redirect counter in the lock menu replacing disruptive toasts over player controls.
