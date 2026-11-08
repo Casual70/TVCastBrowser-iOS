@@ -41,11 +41,11 @@ struct UserGuideView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack(spacing: 20) {
                 // Header Step Counter
                 Text(String(format: NSLocalizedString("user_guide_step_counter", comment: ""), currentStep + 1, steps.count))
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.accentColor)
                     .padding(.top, 12)
 
@@ -64,7 +64,7 @@ struct UserGuideView: View {
                             }
 
                             Text(NSLocalizedString(step.titleKey, comment: ""))
-                                .font(.title2.weight(.bold))
+                                .font(.system(size: 22, weight: .bold))
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 20)
 
@@ -110,7 +110,7 @@ struct UserGuideView: View {
                         }
                     } label: {
                         Text(currentStep == steps.count - 1 ? NSLocalizedString("user_guide_start", comment: "") : NSLocalizedString("user_guide_next", comment: ""))
-                            .fontWeight(.semibold)
+                            .font(.system(size: 16, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -131,6 +131,7 @@ struct UserGuideView: View {
                 }
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 

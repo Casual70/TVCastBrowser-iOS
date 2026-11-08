@@ -2,3 +2,4 @@
 - Dettagliata spiegazione della protezione Blocco Dominio Anti-Redirect contro finestre popup e fake player
 - Supporto a 10 lingue internazionali
 - Ottimizzazioni per la riproduzione streaming HLS / Cast e stabilità generale
+
