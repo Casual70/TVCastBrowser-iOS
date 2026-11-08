@@ -128,7 +128,7 @@ class CastForegroundService : Service() {
             .addAction(android.R.drawable.ic_media_rew, "-30s", rewindPending)
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                if (isPlaying) "Pausa" else "Play",
+                if (isPlaying) getString(R.string.pause) else getString(R.string.play),
                 playPausePending
             )
             .addAction(android.R.drawable.ic_media_ff, "+30s", forwardPending)

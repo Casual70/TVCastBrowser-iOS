@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Pague-me um café (PayPal)</string>
+    <string name="donate_coffee_subtitle">Apoie o desenvolvimento open source do TV Cast Browser</string>
+    <string name="search_or_enter_url">Pesquisar ou digitar endereço web...</string>
+    <string name="reload">Recarregar</string>
+    <string name="home_page_and_domain_lock">Página inicial e bloqueio de domínio</string>
+    <string name="set_current_page_as_main">Definir esta página como principal</string>
+    <string name="block_tabs_outside_domain">Bloquear novas abas fora de %s</string>
+    <string name="go_to_main_page">Ir para a página principal</string>
+    <string name="domain_lock_on">Bloqueio fora de domínio (%s): ATIVO</string>
+    <string name="domain_lock_off">Bloqueio fora de domínio: INATIVO</string>
+    <string name="intrusive_elements_blocked">%d elementos intrusivos bloqueados</string>
+    <string name="adblock_shield_on">Escudo AdBlock: ATIVADO</string>
+    <string name="adblock_shield_off">Escudo AdBlock: DESATIVADO</string>
+    <string name="total_blocked_items">Total de itens bloqueados: %d</string>
+    <string name="recent_history">Histórico recente</string>
+    <string name="clear_history">Limpar histórico</string>
+    <string name="no_recent_history">Nenhum histórico recente</string>
+    <string name="pin_page_as_main">Fixar %s como principal</string>
+    <string name="domain_locked_badge" formatted="false">Domínio bloqueado: %1 • %2 anúncios bloqueados</string>
+    <string name="detected_video_streams">Transmissões de vídeo detectadas</string>
+    <string name="clear_button">Limpar</string>
+    <string name="proxy_prebuffer_title">Proxy e pré-buffer RAM anti-interrupção</string>
+    <string name="proxy_disabled_hint">Desativado (envia URL direta para a TV)</string>
+    <string name="buffer_warmup_countdown"> • Estabilidade: buffer de 100MB em %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • Buffer RAM: %1 / %2 (%3 seg)</string>
+    <string name="buffer_up_to_100mb"> • Buffer até 100 MB (inicia após 30s)</string>
+    <string name="buffer_active_100mb"> • Buffer de 100MB ativo</string>
+    <string name="play_on_tv">Reproduzir na TV</string>
+    <string name="source_label">Fonte</string>
+    <string name="quality_label">Qualidade / Formato</string>
+    <string name="no_videos_found">Nenhum vídeo encontrado nesta página</string>
+    <string name="cast_devices_title">Dispositivos TV e Chromecast</string>
+    <string name="searching_devices">Procurando dispositivos...</string>
+    <string name="refresh_search">Atualizar busca</string>
+    <string name="manual_ip_connection">Conexão manual por IP</string>
+    <string name="enter_ip_placeholder">Digite o IP (ex: 192.168.1.50)</string>
+    <string name="connect_button">Conectar</string>
+    <string name="disconnect_button">Desconectar</string>
+    <string name="connected_to">Conectado a %s</string>
+    <string name="disconnected">Desconectado</string>
+    <string name="no_devices_found">Nenhum Chromecast ou Smart TV detectado automaticamente</string>
+    <string name="playing_on">Reproduzindo em %s</string>
+    <string name="paused_on">Pausado em %s</string>
+    <string name="play">Reproduzir</string>
+    <string name="pause">Pausar</string>
+    <string name="stop_cast">Parar / Desconectar</string>
+    <string name="cast_button_no_video">Nenhum vídeo detectado</string>
+    <string name="cast_button_one_video">1 vídeo pronto para transmitir</string>
+    <string name="cast_button_multi_videos">%d vídeos prontos para transmitir</string>
+    <string name="main_page_set_snackbar">Página inicial definida! Abas externas bloqueadas fora de %s</string>
+    <string name="fg_service_casting_title">Transmitindo para %s</string>
+    <string name="fg_service_paused_title">Transmissão pausada em %s</string>
+    <string name="fg_service_playing_text">Reproduzindo</string>
+    <string name="fg_service_paused_text">Pausado</string>
+</resources>

@@ -1,0 +1,1 @@
+v1.5.0: Supporto multilingua completo in 10 lingue (Italiano, Inglese, Tedesco, Francese, Spagnolo, Portoghese, Cinese, Giapponese, Arabo RTL, Ucraino), integrazione pulsante donazioni 'Buy Me a Coffee' tramite PayPal diretto sopra la card del buffer nel pannello Cast.

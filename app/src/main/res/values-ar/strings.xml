@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">اشترِ لي قهوة (PayPal)</string>
+    <string name="donate_coffee_subtitle">ادعم تطوير TV Cast Browser مفتوح المصدر</string>
+    <string name="search_or_enter_url">ابحث أو أدخل عنوان الويب...</string>
+    <string name="reload">إعادة تحميل</string>
+    <string name="home_page_and_domain_lock">الصفحة الرئيسية وقفل النطاق</string>
+    <string name="set_current_page_as_main">تعيين هذه الصفحة كصفحة رئيسية</string>
+    <string name="block_tabs_outside_domain">حظر علامات التبويب خارج %s</string>
+    <string name="go_to_main_page">الانتقال إلى الصفحة الرئيسية</string>
+    <string name="domain_lock_on">قفل خارج النطاق (%s): مفعل</string>
+    <string name="domain_lock_off">قفل خارج النطاق: معطل</string>
+    <string name="intrusive_elements_blocked">تم حظر %d عنصر مزعج</string>
+    <string name="adblock_shield_on">درع مانع الإعلانات: مفعل</string>
+    <string name="adblock_shield_off">درع مانع الإعلانات: معطل</string>
+    <string name="total_blocked_items">إجمالي العناصر المحظورة: %d</string>
+    <string name="recent_history">السجل الأخير</string>
+    <string name="clear_history">مسح السجل</string>
+    <string name="no_recent_history">لا يوجد سجل حديث</string>
+    <string name="pin_page_as_main">تثبيت %s كصفحة رئيسية</string>
+    <string name="domain_locked_badge" formatted="false">النطاق المقفل: %s • تم حظر %d إعلان</string>
+    <string name="detected_video_streams">تدفقات الفيديو المكتشفة</string>
+    <string name="clear_button">مسح</string>
+    <string name="proxy_prebuffer_title">وكيل ومخزن مؤقت للذاكرة يمنع الانقطاع</string>
+    <string name="proxy_disabled_hint">معطل (إرسال الرابط المباشر إلى التلفزيون)</string>
+    <string name="buffer_warmup_countdown"> • استقرار النقطة: تخزين 100 ميجابايت خلال %d ثانية</string>
+    <string name="buffer_ram_stats" formatted="false"> • مخزن RAM: %1 / %2 (%3 مقطع)</string>
+    <string name="buffer_up_to_100mb"> • تخزين حتى 100 ميجابايت (يبدأ بعد 30 ثانية)</string>
+    <string name="buffer_active_100mb"> • المخزن المؤقت 100 ميجابايت نشط</string>
+    <string name="play_on_tv">تشغيل على التلفزيون</string>
+    <string name="source_label">المصدر</string>
+    <string name="quality_label">الجودة / التنسيق</string>
+    <string name="no_videos_found">لم يتم العثور على أي فيديو في هذه الصفحة</string>
+    <string name="cast_devices_title">أجهزة التلفزيون و Chromecast</string>
+    <string name="searching_devices">جارٍ البحث عن أجهزة...</string>
+    <string name="refresh_search">تحديث البحث</string>
+    <string name="manual_ip_connection">الاتصال يدويًا عبر IP</string>
+    <string name="enter_ip_placeholder">أدخل IP (مثال: 192.168.1.50)</string>
+    <string name="connect_button">اتصال</string>
+    <string name="disconnect_button">قطع الاتصال</string>
+    <string name="connected_to">متصل بـ %s</string>
+    <string name="disconnected">غير متصل</string>
+    <string name="no_devices_found">لم يتم العثور تلقائيًا على أي جهاز تلفزيون أو Chromecast</string>
+    <string name="playing_on">قيد التشغيل على %s</string>
+    <string name="paused_on">متوقف مؤقتًا على %s</string>
+    <string name="play">تشغيل</string>
+    <string name="pause">إيقاف مؤقت</string>
+    <string name="stop_cast">إيقاف / قطع الاتصال</string>
+    <string name="cast_button_no_video">لم يتم اكتشاف فيديو</string>
+    <string name="cast_button_one_video">فيديو واحد جاهز للبث</string>
+    <string name="cast_button_multi_videos">%d فيديوهات جاهزة للبث</string>
+    <string name="main_page_set_snackbar">تم تعيين الصفحة الرئيسية! تم حظر النوافذ خارج %s</string>
+    <string name="fg_service_casting_title">جارٍ البث إلى %s</string>
+    <string name="fg_service_paused_title">تم إيقاف البث مؤقتًا على %s</string>
+    <string name="fg_service_playing_text">قيد التشغيل</string>
+    <string name="fg_service_paused_text">متوقف مؤقتًا</string>
+</resources>

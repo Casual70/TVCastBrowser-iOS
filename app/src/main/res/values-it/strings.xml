@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Offrimi un caffè (PayPal)</string>
+    <string name="donate_coffee_subtitle">Supporta lo sviluppo open source di TV Cast Browser</string>
+    <string name="search_or_enter_url">Cerca o inserisci indirizzo web...</string>
+    <string name="reload">Ricarica</string>
+    <string name="home_page_and_domain_lock">Pagina Principale e Blocco Dominio</string>
+    <string name="set_current_page_as_main">Imposta questa pagina come Principale</string>
+    <string name="block_tabs_outside_domain">Blocca nuove schede fuori da %s</string>
+    <string name="go_to_main_page">Vai alla Pagina Principale</string>
+    <string name="domain_lock_on">Blocco fuori dominio (%s): ON</string>
+    <string name="domain_lock_off">Blocco fuori dominio: OFF</string>
+    <string name="intrusive_elements_blocked">%d elementi intrusivi bloccati</string>
+    <string name="adblock_shield_on">Scudo AdBlock: ON</string>
+    <string name="adblock_shield_off">Scudo AdBlock: OFF</string>
+    <string name="total_blocked_items">Totale elementi bloccati: %d</string>
+    <string name="recent_history">Cronologia Recenti</string>
+    <string name="clear_history">Cancella cronologia</string>
+    <string name="no_recent_history">Nessuna cronologia recente</string>
+    <string name="pin_page_as_main">Fissa %s come principale</string>
+    <string name="domain_locked_badge" formatted="false">Dominio bloccato: %1 • %2 ad bloccati</string>
+    <string name="detected_video_streams">Flussi Video Rilevati</string>
+    <string name="clear_button">Pulisci</string>
+    <string name="proxy_prebuffer_title">Proxy + Pre-Buffer RAM Anti-Interruzione</string>
+    <string name="proxy_disabled_hint">Disattivato (invia URL diretto alla TV)</string>
+    <string name="buffer_warmup_countdown"> • Stabilità punto: buffer 100MB tra %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • Buffer RAM: %1 / %2 (%3 seg)</string>
+    <string name="buffer_up_to_100mb"> • Buffer fino a 100 MB (parte dopo 30s)</string>
+    <string name="buffer_active_100mb"> • Buffer 100MB attivo</string>
+    <string name="play_on_tv">Riproduci sulla TV</string>
+    <string name="source_label">Sorgente</string>
+    <string name="quality_label">Qualità / Formato</string>
+    <string name="no_videos_found">Nessun video trovato in questa pagina</string>
+    <string name="cast_devices_title">Dispositivi TV e Chromecast</string>
+    <string name="searching_devices">Ricerca dispositivi in corso...</string>
+    <string name="refresh_search">Aggiorna ricerca</string>
+    <string name="manual_ip_connection">Connessione manuale tramite IP</string>
+    <string name="enter_ip_placeholder">Inserisci IP (es. 192.168.1.50)</string>
+    <string name="connect_button">Connetti</string>
+    <string name="disconnect_button">Disconnetti</string>
+    <string name="connected_to">Connesso a %s</string>
+    <string name="disconnected">Disconnesso</string>
+    <string name="no_devices_found">Nessun Chromecast o Smart TV rilevato automaticamente</string>
+    <string name="playing_on">In riproduzione su %s</string>
+    <string name="paused_on">In pausa su %s</string>
+    <string name="play">Play</string>
+    <string name="pause">Pausa</string>
+    <string name="stop_cast">Ferma / Disconnetti</string>
+    <string name="cast_button_no_video">Nessun video rilevato</string>
+    <string name="cast_button_one_video">1 video pronto da trasmettere</string>
+    <string name="cast_button_multi_videos">%d video pronti da trasmettere</string>
+    <string name="main_page_set_snackbar">Pagina principale impostata! Bloccate nuove schede fuori da %s</string>
+    <string name="fg_service_casting_title">Trasmissione in corso su %s</string>
+    <string name="fg_service_paused_title">Trasmissione in pausa su %s</string>
+    <string name="fg_service_playing_text">In riproduzione</string>
+    <string name="fg_service_paused_text">In pausa</string>
+</resources>

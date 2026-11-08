@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Offrez-moi un café (PayPal)</string>
+    <string name="donate_coffee_subtitle">Soutenez le développement open source de TV Cast Browser</string>
+    <string name="search_or_enter_url">Rechercher ou saisir une adresse web...</string>
+    <string name="reload">Recharger</string>
+    <string name="home_page_and_domain_lock">Page d\'accueil et verrouillage de domaine</string>
+    <string name="set_current_page_as_main">Définir cette page comme page d\'accueil</string>
+    <string name="block_tabs_outside_domain">Bloquer les nouveaux onglets hors de %s</string>
+    <string name="go_to_main_page">Aller à la page d\'accueil</string>
+    <string name="domain_lock_on">Verrouillage hors domaine (%s) : ACTIVÉ</string>
+    <string name="domain_lock_off">Verrouillage hors domaine : DÉSACTIVÉ</string>
+    <string name="intrusive_elements_blocked">%d éléments intrusifs bloqués</string>
+    <string name="adblock_shield_on">Bouclier AdBlock : ACTIVÉ</string>
+    <string name="adblock_shield_off">Bouclier AdBlock : DÉSACTIVÉ</string>
+    <string name="total_blocked_items">Total des éléments bloqués : %d</string>
+    <string name="recent_history">Historique récent</string>
+    <string name="clear_history">Effacer l\'historique</string>
+    <string name="no_recent_history">Aucun historique récent</string>
+    <string name="pin_page_as_main">Épingler %s comme page d\'accueil</string>
+    <string name="domain_locked_badge" formatted="false">Domaine verrouillé : %1 • %2 pubs bloquées</string>
+    <string name="detected_video_streams">Flux vidéo détectés</string>
+    <string name="clear_button">Effacer</string>
+    <string name="proxy_prebuffer_title">Proxy et pré-mémoire tampon RAM anti-coupure</string>
+    <string name="proxy_disabled_hint">Désactivé (envoie l\'URL directe à la TV)</string>
+    <string name="buffer_warmup_countdown"> • Stabilité du point : tampon de 100 Mo dans %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • Tampon RAM : %1 / %2 (%3 segments)</string>
+    <string name="buffer_up_to_100mb"> • Tampon jusqu\'à 100 Mo (démarre après 30s)</string>
+    <string name="buffer_active_100mb"> • Tampon 100 Mo actif</string>
+    <string name="play_on_tv">Lire sur la TV</string>
+    <string name="source_label">Source</string>
+    <string name="quality_label">Qualité / Format</string>
+    <string name="no_videos_found">Aucune vidéo trouvée sur cette page</string>
+    <string name="cast_devices_title">Appareils TV et Chromecast</string>
+    <string name="searching_devices">Recherche d\'appareils en cours...</string>
+    <string name="refresh_search">Actualiser la recherche</string>
+    <string name="manual_ip_connection">Connexion manuelle par IP</string>
+    <string name="enter_ip_placeholder">Entrez l\'IP (ex. 192.168.1.50)</string>
+    <string name="connect_button">Connecter</string>
+    <string name="disconnect_button">Déconnecter</string>
+    <string name="connected_to">Connecté à %s</string>
+    <string name="disconnected">Déconnecté</string>
+    <string name="no_devices_found">Aucun Chromecast ou Smart TV détecté automatiquement</string>
+    <string name="playing_on">Lecture sur %s</string>
+    <string name="paused_on">En pause sur %s</string>
+    <string name="play">Lecture</string>
+    <string name="pause">Pause</string>
+    <string name="stop_cast">Arrêter / Déconnecter</string>
+    <string name="cast_button_no_video">Aucune vidéo détectée</string>
+    <string name="cast_button_one_video">1 vidéo prête à diffuser</string>
+    <string name="cast_button_multi_videos">%d vidéos prêtes à diffuser</string>
+    <string name="main_page_set_snackbar">Page d\'accueil définie ! Onglets externes bloqués hors de %s</string>
+    <string name="fg_service_casting_title">Diffusion sur %s</string>
+    <string name="fg_service_paused_title">Diffusion en pause sur %s</string>
+    <string name="fg_service_playing_text">Lecture</string>
+    <string name="fg_service_paused_text">En pause</string>
+</resources>

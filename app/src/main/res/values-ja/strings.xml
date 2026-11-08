@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">コーヒーを奢る (PayPal)</string>
+    <string name="donate_coffee_subtitle">TV Cast Browser のオープンソース開発を支援</string>
+    <string name="search_or_enter_url">検索またはウェブアドレスを入力...</string>
+    <string name="reload">再読み込み</string>
+    <string name="home_page_and_domain_lock">ホームページとドメインロック</string>
+    <string name="set_current_page_as_main">このページをホームページに設定</string>
+    <string name="block_tabs_outside_domain">%s 外の新しいタブをブロック</string>
+    <string name="go_to_main_page">ホームページへ移動</string>
+    <string name="domain_lock_on">ドメイン外ブロック (%s): オン</string>
+    <string name="domain_lock_off">ドメイン外ブロック: オフ</string>
+    <string name="intrusive_elements_blocked">%d 件の邪魔な要素をブロック</string>
+    <string name="adblock_shield_on">AdBlock シールド: オン</string>
+    <string name="adblock_shield_off">AdBlock シールド: オフ</string>
+    <string name="total_blocked_items">合計ブロック要素: %d</string>
+    <string name="recent_history">最近の履歴</string>
+    <string name="clear_history">履歴を消去</string>
+    <string name="no_recent_history">最近の履歴はありません</string>
+    <string name="pin_page_as_main">%s をホームページに固定</string>
+    <string name="domain_locked_badge" formatted="false">固定ドメイン: %1 • %2 件の広告をブロック</string>
+    <string name="detected_video_streams">検出された動画ストリーム</string>
+    <string name="clear_button">クリア</string>
+    <string name="proxy_prebuffer_title">途切れ防止ローカルプロキシ＆RAMプリバッファ</string>
+    <string name="proxy_disabled_hint">無効 (テレビに直接URLを送信)</string>
+    <string name="buffer_warmup_countdown"> • 再生安定中: %d秒後に100MBバッファ開始</string>
+    <string name="buffer_ram_stats" formatted="false"> • RAM バッファ: %1 / %2 (%3 セグメント)</string>
+    <string name="buffer_up_to_100mb"> • 最大100MBバッファ (30秒安定後に開始)</string>
+    <string name="buffer_active_100mb"> • 100MBバッファ有効</string>
+    <string name="play_on_tv">テレビで再生</string>
+    <string name="source_label">ソース</string>
+    <string name="quality_label">画質 / 形式</string>
+    <string name="no_videos_found">このページに動画は見つかりませんでした</string>
+    <string name="cast_devices_title">テレビと Chromecast デバイス</string>
+    <string name="searching_devices">デバイスを検索中...</string>
+    <string name="refresh_search">再検索</string>
+    <string name="manual_ip_connection">IPによる手動接続</string>
+    <string name="enter_ip_placeholder">IPを入力 (例: 192.168.1.50)</string>
+    <string name="connect_button">接続</string>
+    <string name="disconnect_button">切断</string>
+    <string name="connected_to">%s に接続済み</string>
+    <string name="disconnected">切断済み</string>
+    <string name="no_devices_found">Chromecast またはスマートテレビが見つかりません</string>
+    <string name="playing_on">%s で再生中</string>
+    <string name="paused_on">%s で一時停止中</string>
+    <string name="play">再生</string>
+    <string name="pause">一時停止</string>
+    <string name="stop_cast">停止 / 切断</string>
+    <string name="cast_button_no_video">動画が検出されていません</string>
+    <string name="cast_button_one_video">1本の動画がキャスト準備完了</string>
+    <string name="cast_button_multi_videos">%d本の動画がキャスト準備完了</string>
+    <string name="main_page_set_snackbar">ホームページを設定しました！ %s 外の新規タブをブロックします</string>
+    <string name="fg_service_casting_title">%s でキャスト中</string>
+    <string name="fg_service_paused_title">%s でキャスト一時停止中</string>
+    <string name="fg_service_playing_text">再生中</string>
+    <string name="fg_service_paused_text">一時停止中</string>
+</resources>

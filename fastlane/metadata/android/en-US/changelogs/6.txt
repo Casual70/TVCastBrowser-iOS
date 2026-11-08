@@ -1,0 +1,1 @@
+v1.5.0: Complete multilingual localization in 10 languages (Italian, English, German, French, Spanish, Portuguese, Chinese, Japanese, Arabic RTL, Ukrainian), integrated 'Buy Me a Coffee' PayPal donation card directly above the buffer card in the Cast sheet.

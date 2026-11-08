@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Купи мені каву (PayPal)</string>
+    <string name="donate_coffee_subtitle">Підтримайте відкриту розробку TV Cast Browser</string>
+    <string name="search_or_enter_url">Пошук або введіть веб-адресу...</string>
+    <string name="reload">Оновити</string>
+    <string name="home_page_and_domain_lock">Головна сторінка та блокування домену</string>
+    <string name="set_current_page_as_main">Зробити цю сторінку головною</string>
+    <string name="block_tabs_outside_domain">Блокувати нові вкладки за межами %s</string>
+    <string name="go_to_main_page">Перейти на головну сторінку</string>
+    <string name="domain_lock_on">Блокування поза доменом (%s): УВІМК</string>
+    <string name="domain_lock_off">Блокування поза доменом: ВИМК</string>
+    <string name="intrusive_elements_blocked">Заблоковано %d нав\'язливих елементів</string>
+    <string name="adblock_shield_on">Захист AdBlock: УВІМК</string>
+    <string name="adblock_shield_off">Захист AdBlock: ВИМК</string>
+    <string name="total_blocked_items">Усього заблокованих елементів: %d</string>
+    <string name="recent_history">Остання історія</string>
+    <string name="clear_history">Очистити історію</string>
+    <string name="no_recent_history">Немає останньої історії</string>
+    <string name="pin_page_as_main">Закріпити %s як головну</string>
+    <string name="domain_locked_badge" formatted="false">Заблокований домен: %1 • %2 реклами заблоковано</string>
+    <string name="detected_video_streams">Виявлені відеопотоки</string>
+    <string name="clear_button">Очистити</string>
+    <string name="proxy_prebuffer_title">Проксі та буфер RAM проти переривань</string>
+    <string name="proxy_disabled_hint">Вимкнено (надсилає пряму URL на телевізор)</string>
+    <string name="buffer_warmup_countdown"> • Стабільність: буфер 100MB через %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • Буфер RAM: %1 / %2 (%3 сегм)</string>
+    <string name="buffer_up_to_100mb"> • Буфер до 100 МБ (стартує через 30с)</string>
+    <string name="buffer_active_100mb"> • Буфер 100МБ активний</string>
+    <string name="play_on_tv">Відтворити на ТВ</string>
+    <string name="source_label">Джерело</string>
+    <string name="quality_label">Якість / Формат</string>
+    <string name="no_videos_found">На цій сторінці не знайдено відео</string>
+    <string name="cast_devices_title">Пристрої TV та Chromecast</string>
+    <string name="searching_devices">Пошук пристроїв...</string>
+    <string name="refresh_search">Оновити пошук</string>
+    <string name="manual_ip_connection">Ручне підключення за IP</string>
+    <string name="enter_ip_placeholder">Введіть IP (напр. 192.168.1.50)</string>
+    <string name="connect_button">Підключити</string>
+    <string name="disconnect_button">Відключити</string>
+    <string name="connected_to">Підключено до %s</string>
+    <string name="disconnected">Відключено</string>
+    <string name="no_devices_found">Chromecast або Smart TV не знайдено автоматично</string>
+    <string name="playing_on">Відтворення на %s</string>
+    <string name="paused_on">На паузі на %s</string>
+    <string name="play">Відтворити</string>
+    <string name="pause">Пауза</string>
+    <string name="stop_cast">Зупинити / Відключити</string>
+    <string name="cast_button_no_video">Відео не виявлено</string>
+    <string name="cast_button_one_video">1 відео готове до трансляції</string>
+    <string name="cast_button_multi_videos">%d відео готові до трансляції</string>
+    <string name="main_page_set_snackbar">Головну сторінку встановлено! Вкладки за межами %s заблоковано</string>
+    <string name="fg_service_casting_title">Трансляція на %s</string>
+    <string name="fg_service_paused_title">Трансляцію призупинено на %s</string>
+    <string name="fg_service_playing_text">Відтворення</string>
+    <string name="fg_service_paused_text">Призупинено</string>
+</resources>

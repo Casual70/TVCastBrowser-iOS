@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Invítame a un café (PayPal)</string>
+    <string name="donate_coffee_subtitle">Apoya el desarrollo de código abierto de TV Cast Browser</string>
+    <string name="search_or_enter_url">Buscar o escribir dirección web...</string>
+    <string name="reload">Recargar</string>
+    <string name="home_page_and_domain_lock">Página de inicio y bloqueo de dominio</string>
+    <string name="set_current_page_as_main">Establecer esta página como principal</string>
+    <string name="block_tabs_outside_domain">Bloquear nuevas pestañas fuera de %s</string>
+    <string name="go_to_main_page">Ir a la página principal</string>
+    <string name="domain_lock_on">Bloqueo fuera de dominio (%s): ACTIVADO</string>
+    <string name="domain_lock_off">Bloqueo fuera de dominio: DESACTIVADO</string>
+    <string name="intrusive_elements_blocked">%d elementos intrusivos bloqueados</string>
+    <string name="adblock_shield_on">Escudo AdBlock: ACTIVADO</string>
+    <string name="adblock_shield_off">Escudo AdBlock: DESACTIVADO</string>
+    <string name="total_blocked_items">Total de elementos bloqueados: %d</string>
+    <string name="recent_history">Historial reciente</string>
+    <string name="clear_history">Borrar historial</string>
+    <string name="no_recent_history">Sin historial reciente</string>
+    <string name="pin_page_as_main">Fijar %s como principal</string>
+    <string name="domain_locked_badge" formatted="false">Dominio bloqueado: %1 • %2 anuncios bloqueados</string>
+    <string name="detected_video_streams">Flujos de video detectados</string>
+    <string name="clear_button">Limpiar</string>
+    <string name="proxy_prebuffer_title">Proxy y búfer previo de RAM anti-cortes</string>
+    <string name="proxy_disabled_hint">Desactivado (envía URL directa a la TV)</string>
+    <string name="buffer_warmup_countdown"> • Estabilidad: búfer de 100MB en %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • Búfer RAM: %1 / %2 (%3 seg)</string>
+    <string name="buffer_up_to_100mb"> • Búfer de hasta 100 MB (inicia tras 30s)</string>
+    <string name="buffer_active_100mb"> • Búfer de 100MB activo</string>
+    <string name="play_on_tv">Reproducir en TV</string>
+    <string name="source_label">Fuente</string>
+    <string name="quality_label">Calidad / Formato</string>
+    <string name="no_videos_found">No se encontró ningún video en esta página</string>
+    <string name="cast_devices_title">Dispositivos TV y Chromecast</string>
+    <string name="searching_devices">Buscando dispositivos...</string>
+    <string name="refresh_search">Actualizar búsqueda</string>
+    <string name="manual_ip_connection">Conexión manual mediante IP</string>
+    <string name="enter_ip_placeholder">Introduce la IP (ej. 192.168.1.50)</string>
+    <string name="connect_button">Conectar</string>
+    <string name="disconnect_button">Desconectar</string>
+    <string name="connected_to">Conectado a %s</string>
+    <string name="disconnected">Desconectado</string>
+    <string name="no_devices_found">No se detectó automáticamente ningún Chromecast o Smart TV</string>
+    <string name="playing_on">Reproduciendo en %s</string>
+    <string name="paused_on">Pausado en %s</string>
+    <string name="play">Reproducir</string>
+    <string name="pause">Pausa</string>
+    <string name="stop_cast">Detener / Desconectar</string>
+    <string name="cast_button_no_video">Ningún video detectado</string>
+    <string name="cast_button_one_video">1 video listo para transmitir</string>
+    <string name="cast_button_multi_videos">%d videos listos para transmitir</string>
+    <string name="main_page_set_snackbar">¡Página principal establecida! Pestañas bloqueadas fuera de %s</string>
+    <string name="fg_service_casting_title">Transmitiendo a %s</string>
+    <string name="fg_service_paused_title">Transmisión en pausa en %s</string>
+    <string name="fg_service_playing_text">Reproduciendo</string>
+    <string name="fg_service_paused_text">Pausado</string>
+</resources>

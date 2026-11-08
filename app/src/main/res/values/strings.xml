@@ -1,5 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">Buy Me a Coffee (PayPal)</string>
+    <string name="donate_coffee_subtitle">Support open source development of TV Cast Browser</string>
+    <string name="search_or_enter_url">Search or enter web address...</string>
+    <string name="reload">Reload</string>
+    <string name="home_page_and_domain_lock">Homepage &amp; Domain Lock</string>
+    <string name="set_current_page_as_main">Set this page as Homepage</string>
+    <string name="block_tabs_outside_domain">Block new tabs outside %s</string>
+    <string name="go_to_main_page">Go to Homepage</string>
+    <string name="domain_lock_on">Out-of-domain lock (%s): ON</string>
+    <string name="domain_lock_off">Out-of-domain lock: OFF</string>
+    <string name="intrusive_elements_blocked">%d intrusive elements blocked</string>
+    <string name="adblock_shield_on">AdBlock Shield: ON</string>
+    <string name="adblock_shield_off">AdBlock Shield: OFF</string>
+    <string name="total_blocked_items">Total blocked items: %d</string>
+    <string name="recent_history">Recent History</string>
+    <string name="clear_history">Clear History</string>
+    <string name="no_recent_history">No recent history</string>
+    <string name="pin_page_as_main">Pin %s as homepage</string>
+    <string name="domain_locked_badge" formatted="false">Locked domain: %1 • %2 ads blocked</string>
+    <string name="detected_video_streams">Detected Video Streams</string>
+    <string name="clear_button">Clear</string>
+    <string name="proxy_prebuffer_title">Anti-Interruption RAM Proxy &amp; Pre-Buffer</string>
+    <string name="proxy_disabled_hint">Disabled (sends direct URL to TV)</string>
+    <string name="buffer_warmup_countdown"> • Point stability: 100MB buffer in %ds</string>
+    <string name="buffer_ram_stats" formatted="false"> • RAM Buffer: %1 / %2 (%3 seg)</string>
+    <string name="buffer_up_to_100mb"> • Buffer up to 100 MB (starts after 30s)</string>
+    <string name="buffer_active_100mb"> • 100MB buffer active</string>
+    <string name="play_on_tv">Play on TV</string>
+    <string name="source_label">Source</string>
+    <string name="quality_label">Quality / Format</string>
+    <string name="no_videos_found">No video found on this page</string>
+    <string name="cast_devices_title">TV &amp; Chromecast Devices</string>
+    <string name="searching_devices">Searching for devices...</string>
+    <string name="refresh_search">Refresh search</string>
+    <string name="manual_ip_connection">Connect manually via IP</string>
+    <string name="enter_ip_placeholder">Enter IP (e.g. 192.168.1.50)</string>
+    <string name="connect_button">Connect</string>
+    <string name="disconnect_button">Disconnect</string>
+    <string name="connected_to">Connected to %s</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="no_devices_found">No Chromecast or Smart TV detected automatically</string>
+    <string name="playing_on">Playing on %s</string>
+    <string name="paused_on">Paused on %s</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="stop_cast">Stop / Disconnect</string>
+    <string name="cast_button_no_video">No video detected</string>
+    <string name="cast_button_one_video">1 video ready to cast</string>
+    <string name="cast_button_multi_videos">%d videos ready to cast</string>
+    <string name="main_page_set_snackbar">Homepage set! Blocked new tabs outside %s</string>
+    <string name="fg_service_casting_title">Casting to %s</string>
+    <string name="fg_service_paused_title">Casting paused on %s</string>
+    <string name="fg_service_playing_text">Playing</string>
+    <string name="fg_service_paused_text">Paused</string>
 </resources>
-

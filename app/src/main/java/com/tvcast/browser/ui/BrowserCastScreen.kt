@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import com.tvcast.browser.R
 import com.tvcast.browser.cast.CastDevice
 import com.tvcast.browser.cast.TvCastManager
 import com.tvcast.browser.data.BrowserPreferences
@@ -83,7 +86,7 @@ fun BrowserCastScreen(
             }
             "v${pInfo.versionName} (#$vCode)"
         } catch (_: Exception) {
-            "v1.4.0 (#5)"
+            "v1.5.0 (#6)"
         }
     }
     val focusManager = LocalFocusManager.current
@@ -274,7 +277,7 @@ fun BrowserCastScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Column {
-                                                Text("Imposta questa pagina come Principale")
+                                                Text(stringResource(R.string.set_current_page_as_main))
                                                 Text(
                                                     text = "Blocca nuove schede fuori da ${currentBaseDomain ?: "questo sito"}",
                                                     style = MaterialTheme.typography.bodySmall,
@@ -292,7 +295,7 @@ fun BrowserCastScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Column {
-                                                Text("Vai alla Pagina Principale")
+                                                Text(stringResource(R.string.go_to_main_page))
                                                 Text(
                                                     text = savedHomeUrl,
                                                     style = MaterialTheme.typography.bodySmall,
@@ -987,7 +990,7 @@ private fun CastDevicesSheetContent(
             FilledTonalButton(
                 onClick = { if (manualIp.isNotBlank()) onManualIpConnect(manualIp) }
             ) {
-                Text("Connetti")
+                Text(stringResource(R.string.connect_button))
             }
         }
 
@@ -1192,7 +1195,66 @@ private fun DetectedMediaSheetContent(
             }
             if (mediaList.isNotEmpty()) {
                 TextButton(onClick = onClearAll) {
-                    Text("Pulisci")
+                    Text(stringResource(R.string.clear_button))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Card Donazioni PayPal / Buy Me a Coffee
+        val context = LocalContext.current
+        Surface(
+            onClick = {
+                try {
+                    val donateUrl = "https://www.paypal.com/donate/?business=casual70%40gmail.com&no_recurring=0&item_name=Support+TV+Cast+Browser&currency_code=EUR"
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(donateUrl))
+                    context.startActivity(intent)
+                } catch (_: Exception) {}
+            },
+            tonalElevation = 3.dp,
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.donate_coffee_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        text = stringResource(R.string.donate_coffee_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                FilledTonalButton(
+                    onClick = {
+                        try {
+                            val donateUrl = "https://www.paypal.com/donate/?business=casual70%40gmail.com&no_recurring=0&item_name=Support+TV+Cast+Browser&currency_code=EUR"
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(donateUrl))
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text("PayPal", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

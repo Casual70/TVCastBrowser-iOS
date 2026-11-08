@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Cast Browser</string>
+    <string name="donate_coffee_title">请我喝杯咖啡 (PayPal)</string>
+    <string name="donate_coffee_subtitle">支持 TV Cast Browser 的开源开发</string>
+    <string name="search_or_enter_url">搜索或输入网址...</string>
+    <string name="reload">重新加载</string>
+    <string name="home_page_and_domain_lock">主页与域名锁定</string>
+    <string name="set_current_page_as_main">将此页面设置为主页</string>
+    <string name="block_tabs_outside_domain">阻止在 %s 之外打开新标签页</string>
+    <string name="go_to_main_page">前往主页</string>
+    <string name="domain_lock_on">跨域阻止 (%s): 开启</string>
+    <string name="domain_lock_off">跨域阻止: 关闭</string>
+    <string name="intrusive_elements_blocked">已阻止 %d 个侵入式元素</string>
+    <string name="adblock_shield_on">广告拦截盾: 开启</string>
+    <string name="adblock_shield_off">广告拦截盾: 关闭</string>
+    <string name="total_blocked_items">总计拦截元素: %d</string>
+    <string name="recent_history">最近历史</string>
+    <string name="clear_history">清除历史</string>
+    <string name="no_recent_history">暂无最近历史</string>
+    <string name="pin_page_as_main">将 %s 设为主页</string>
+    <string name="domain_locked_badge" formatted="false">锁定域名: %s • 已拦截 %d 个广告</string>
+    <string name="detected_video_streams">已检测到的视频流</string>
+    <string name="clear_button">清除</string>
+    <string name="proxy_prebuffer_title">防卡顿本地代理与 RAM 预加载缓冲</string>
+    <string name="proxy_disabled_hint">已禁用 (直接将原视频网址发送给电视)</string>
+    <string name="buffer_warmup_countdown"> • 播放稳定检测: %d秒后开启100MB缓存</string>
+    <string name="buffer_ram_stats" formatted="false"> • RAM 缓存: %1 / %2 (%3 片段)</string>
+    <string name="buffer_up_to_100mb"> • 最高 100 MB 缓存 (稳定30秒后开启)</string>
+    <string name="buffer_active_100mb"> • 100MB 缓存已激活</string>
+    <string name="play_on_tv">在电视上播放</string>
+    <string name="source_label">来源</string>
+    <string name="quality_label">画质 / 格式</string>
+    <string name="no_videos_found">此页面未检测到视频</string>
+    <string name="cast_devices_title">电视与 Chromecast 设备</string>
+    <string name="searching_devices">正在搜索设备...</string>
+    <string name="refresh_search">刷新搜索</string>
+    <string name="manual_ip_connection">通过 IP 手动连接</string>
+    <string name="enter_ip_placeholder">输入 IP (例如 192.168.1.50)</string>
+    <string name="connect_button">连接</string>
+    <string name="disconnect_button">断开连接</string>
+    <string name="connected_to">已连接到 %s</string>
+    <string name="disconnected">已断开</string>
+    <string name="no_devices_found">未自动发现 Chromecast 或智能电视</string>
+    <string name="playing_on">正在 %s 上播放</string>
+    <string name="paused_on">在 %s 上暂停</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="stop_cast">停止 / 断开</string>
+    <string name="cast_button_no_video">未检测到视频</string>
+    <string name="cast_button_one_video">1 个视频准备投屏</string>
+    <string name="cast_button_multi_videos">%d 个视频准备投屏</string>
+    <string name="main_page_set_snackbar">主页已设置！已阻止 %s 之外的新标签页</string>
+    <string name="fg_service_casting_title">正在投屏至 %s</string>
+    <string name="fg_service_paused_title">在 %s 上的投屏已暂停</string>
+    <string name="fg_service_playing_text">播放中</string>
+    <string name="fg_service_paused_text">已暂停</string>
+</resources>
