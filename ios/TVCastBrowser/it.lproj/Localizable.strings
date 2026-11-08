@@ -48,8 +48,8 @@
 "user_guide_step_counter" = "%d di %d";
 "user_guide_step1_title" = "1. Naviga e Cerca";
 "user_guide_step1_desc" = "Usa la barra degli indirizzi in alto per navigare su qualsiasi sito web o cercare film e video, come in un normale browser.";
-"user_guide_step2_title" = "2. Zero Pubblicità e Redirect";
-"user_guide_step2_desc" = "L'AdBlock integrato e il Blocco Fuori Dominio proteggono la tua navigazione bloccando automaticamente pop-up molesti e redirect intrusivi.";
+"user_guide_step2_title" = "2. Blocco Dominio Anti-Redirect";
+"user_guide_step2_desc" = "Impostando la pagina dal lucchetto, il Blocco Dominio impedisce l'apertura di siti esterni: blocca all'istante falsi tasti Play, pop-up e redirect a siti truffa. Navighi solo sul sito autorizzato, senza schede spazzatura!";
 "user_guide_step3_title" = "3. Rilevamento Video Istantaneo";
 "user_guide_step3_desc" = "Avvia il video nella pagina web: il pulsante fluttuante con l'icona Cast mostrerà subito un badge con i flussi video rilevati (HLS .m3u8, MP4, DASH).";
 "user_guide_step4_title" = "4. Trasmetti sulla Smart TV";

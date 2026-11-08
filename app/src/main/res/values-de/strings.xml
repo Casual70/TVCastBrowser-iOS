@@ -65,8 +65,8 @@
     <string name="user_guide_step_counter">%1$d von %2$d</string>
     <string name="user_guide_step1_title">1. Surfen &amp; Suchen</string>
     <string name="user_guide_step1_desc">Verwende die Adressleiste oben, um Webseiten aufzurufen oder nach Videos zu suchen, genau wie in einem normalen Browser.</string>
-    <string name="user_guide_step2_title">2. Werbe- &amp; Popup-Schutz</string>
-    <string name="user_guide_step2_desc">Der integrierte AdBlock und die Domainsperre blockieren lästige Popups und unerwünschte Weiterleitungen automatisch.</string>
+    <string name="user_guide_step2_title">2. Domainsperre &amp; Anti-Weiterleitung</string>
+    <string name="user_guide_step2_desc">Wenn du eine Seite sperrst, verhindert die Domainsperre das Öffnen externer Seiten: Gefälschte Play-Buttons, Popups und bösartige Weiterleitungen werden sofort blockiert!</string>
     <string name="user_guide_step3_title">3. Sofortige Videoerkennung</string>
     <string name="user_guide_step3_desc">Starte ein Video auf der Webseite: Die schwebende Cast-Schaltfläche zeigt sofort gefundene Streams an (HLS .m3u8, MP4, DASH).</string>
     <string name="user_guide_step4_title">4. Auf Smart TV übertragen</string>

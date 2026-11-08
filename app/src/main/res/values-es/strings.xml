@@ -65,8 +65,8 @@
     <string name="user_guide_step_counter">%1$d de %2$d</string>
     <string name="user_guide_step1_title">1. Navegar y buscar</string>
     <string name="user_guide_step1_desc">Usa la barra superior para navegar por cualquier sitio web o buscar vídeos, igual que en un navegador convencional.</string>
-    <string name="user_guide_step2_title">2. Sin publicidad ni redirecciones</string>
-    <string name="user_guide_step2_desc">El AdBlock integrado y el Bloqueo de Dominio evitan automáticamente ventanas emergentes molestas y redirecciones no deseadas.</string>
+    <string name="user_guide_step2_title">2. Bloqueo de Dominio Anti-Redirección</string>
+    <string name="user_guide_step2_desc">Al fijar tu página con el candado, el Bloqueo de Dominio impide abrir sitios externos: bloquea al instante falsos botones Play, ventanas emergentes y redirecciones molestas.</string>
     <string name="user_guide_step3_title">3. Detección instantánea de vídeo</string>
     <string name="user_guide_step3_desc">Inicia la reproducción de un vídeo: el botón flotante de Cast mostrará de inmediato los flujos detectados (HLS .m3u8, MP4, DASH).</string>
     <string name="user_guide_step4_title">4. Transmitir a Smart TV</string>

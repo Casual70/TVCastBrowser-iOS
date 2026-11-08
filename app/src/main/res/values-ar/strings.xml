@@ -65,8 +65,8 @@
     <string name="user_guide_step_counter">%1$d من %2$d</string>
     <string name="user_guide_step1_title">1. التصفح والبحث</string>
     <string name="user_guide_step1_desc">استخدم شريط العناوين في الأعلى لتصفح أي موقع ويب أو البحث عن مقاطع الفيديو تمامًا كأي متصفح عادي.</string>
-    <string name="user_guide_step2_title">2. حجب الإعلانات والتوجيهات</string>
-    <string name="user_guide_step2_desc">يقوم مانع الإعلانات المدمج وقفل النطاق بحظر النوافذ المنبثقة المزعجة وإعادة التوجيه الإجباري تلقائيًا.</string>
+    <string name="user_guide_step2_title">2. قفل النطاق ومنع إعادة التوجيه</string>
+    <string name="user_guide_step2_desc">عند تعيين موقعك عبر رمز القفل، يمنع قفل النطاق فتح أي مواقع خارجية: فهو يحظر فورًا أزرار التشغيل الوهمية والنوافذ المنبثقة وإعادة التوجيه الإجباري!</string>
     <string name="user_guide_step3_title">3. اكتشاف فوري للفيديو</string>
     <string name="user_guide_step3_desc">ابدأ تشغيل أي فيديو في الصفحة، وسيظهر زر البث العائم عدادًا بالوسائط المكتشفة (HLS .m3u8 و MP4 و DASH).</string>
     <string name="user_guide_step4_title">4. البث إلى التلفاز الذكي</string>

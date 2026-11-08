@@ -65,8 +65,8 @@
     <string name="user_guide_step_counter">%1$d / %2$d</string>
     <string name="user_guide_step1_title">1. 閲覧と検索</string>
     <string name="user_guide_step1_desc">上部のアドレスバーを使用して、通常のブラウザと同じようにWebサイトを閲覧・検索できます。</string>
-    <string name="user_guide_step2_title">2. 広告とリダイレクトのブロック</string>
-    <string name="user_guide_step2_desc">内蔵の広告ブロッカーとドメインロックにより、煩わしいポップアップや不要なリダイレクトを自動的に防止します。</string>
+    <string name="user_guide_step2_title">2. ドメインロック＆リダイレクト防止</string>
+    <string name="user_guide_step2_desc">鍵アイコンからページを設定すると、ドメインロックが外部サイトの起動を防止します。偽の再生ボタン、ポップアップ、悪質なリダイレクトを即座にブロックします！</string>
     <string name="user_guide_step3_title">3. 即座に動画を検出</string>
     <string name="user_guide_step3_desc">ページ上で動画を再生すると、浮動キャストボタンが検出された動画（HLS .m3u8、MP4、DASH）をバッジで表示します。</string>
     <string name="user_guide_step4_title">4. スマートテレビにキャスト</string>

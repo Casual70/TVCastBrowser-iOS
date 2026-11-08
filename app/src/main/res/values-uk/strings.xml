@@ -65,8 +65,8 @@
     <string name="user_guide_step_counter">%1$d з %2$d</string>
     <string name="user_guide_step1_title">1. Перегляд та пошук</string>
     <string name="user_guide_step1_desc">Використовуйте рядок пошуку вгорі для перегляду веб-сайтів або пошуку відео, як у звичайному браузері.</string>
-    <string name="user_guide_step2_title">2. Захист від реклами</string>
-    <string name="user_guide_step2_desc">Вбудований AdBlock та блокування сторонніх доменів автоматично блокують настирливі спливаючі вікна та перенаправлення.</string>
+    <string name="user_guide_step2_title">2. Блокування домену та анти-перенаправлення</string>
+    <string name="user_guide_step2_desc">Встановивши сторінку через замок, Блокування домену забороняє відкриття сторонніх сайтів: миттєво блокує фальшиві кнопки Play, спливаючі вікна та шкідливі перенаправлення!</string>
     <string name="user_guide_step3_title">3. Миттєве виявлення відео</string>
     <string name="user_guide_step3_desc">Увімкніть відтворення відео на сторінці: плаваюча кнопка Cast одразу покаже знайдені потоки (HLS .m3u8, MP4, DASH).</string>
     <string name="user_guide_step4_title">4. Трансляція на Smart TV</string>

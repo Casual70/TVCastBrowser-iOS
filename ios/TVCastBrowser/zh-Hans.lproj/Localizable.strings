@@ -48,8 +48,8 @@
 "user_guide_step_counter" = "第 %d 步，共 %d 步";
 "user_guide_step1_title" = "1. 浏览与搜索";
 "user_guide_step1_desc" = "使用顶部地址栏浏览任何网站或搜索视频，如同使用普通浏览器一样简单。";
-"user_guide_step2_title" = "2. 拦截广告与恶意跳转";
-"user_guide_step2_desc" = "内置广告拦截与域名锁定功能，自动拦截烦人的弹窗和恶意跳转。";
+"user_guide_step2_title" = "2. 域名锁定与防恶意跳转";
+"user_guide_step2_desc" = "通过锁形图标将网站设为主页后，域名锁定会彻底阻止任何外部网站的打开：即时拦截虚假的播放按钮、弹窗和垃圾跳转，只留在您选择的安全网站！";
 "user_guide_step3_title" = "3. 即时视频检测";
 "user_guide_step3_desc" = "在网页中播放视频，右下角的浮动投屏按钮会立即提示已嗅探到的流媒体（HLS .m3u8、MP4、DASH）。";
 "user_guide_step4_title" = "4. 投屏至电视";

@@ -48,8 +48,8 @@
 "user_guide_step_counter" = "%d of %d";
 "user_guide_step1_title" = "1. Browse & Search";
 "user_guide_step1_desc" = "Use the top search bar to browse any website or search for videos, just like a standard web browser.";
-"user_guide_step2_title" = "2. Ad & Popup Protection";
-"user_guide_step2_desc" = "Built-in AdBlock and Domain Lock protect your browsing by automatically blocking annoying popups and intrusive redirects.";
+"user_guide_step2_title" = "2. Domain Lock & Anti-Redirect";
+"user_guide_step2_desc" = "When you set a site as homepage, Domain Lock prevents opening any external site: it instantly blocks fake Play buttons, popup tabs, and unwanted redirects. You only stay on the site you chose!";
 "user_guide_step3_title" = "3. Instant Video Detection";
 "user_guide_step3_desc" = "Play any video on the webpage: the floating Cast button will instantly show a badge with detected streams (HLS .m3u8, MP4, DASH).";
 "user_guide_step4_title" = "4. Cast to Smart TV";
