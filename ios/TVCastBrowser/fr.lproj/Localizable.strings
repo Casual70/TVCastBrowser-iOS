@@ -48,6 +48,8 @@
 "user_guide_step_counter" = "%d sur %d";
 "user_guide_step1_title" = "1. Naviguer et rechercher";
 "user_guide_step1_desc" = "Utilisez la barre d'adresse en haut pour parcourir des sites web ou rechercher des vidéos, comme dans un navigateur classique.";
+"user_guide_step2_title" = "2. Protection contre les pubs";
+"user_guide_step2_desc" = "L'AdBlock intégré et le verrouillage de domaine bloquent automatiquement les fenêtres contextuelles et les redirections intrusives.";
 "user_guide_step2_title" = "2. Verrouillage de domaine anti-redirection";
 "user_guide_step2_desc" = "En définissant votre page, le Verrouillage de Domaine empêche l'ouverture de sites externes : il bloque instantanément les faux boutons Play, popups et redirections indésirables !";
 "user_guide_step3_title" = "3. Détection vidéo instantanée";

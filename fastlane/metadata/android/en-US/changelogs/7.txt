@@ -1,0 +1,4 @@
+- New interactive User Guide on first launch (accessible anytime from the menu)
+- Detailed explanation of Domain Lock Anti-Redirect against popups and fake players
+- Complete localization in 10 languages
+- Enhanced HLS streaming / Cast playback and overall stability

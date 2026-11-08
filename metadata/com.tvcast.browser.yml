@@ -1,0 +1,37 @@
+Categories:
+  - Video
+  - Internet
+License: MIT
+AuthorName: Casual70
+SourceCode: https://github.com/Casual70/TVCastBrowser-iOS
+IssueTracker: https://github.com/Casual70/TVCastBrowser-iOS/issues
+Donate: https://paypal.me/FilippoProcacci
+
+AutoName: TV Cast Browser
+Summary: Stream web videos to Smart TV & Chromecast with Domain Lock & AdBlock
+Description: |-
+  TV Cast Browser is a privacy-focused, lightweight open-source browser and video caster.
+  Cast web videos (HLS .m3u8, MP4, DASH) directly to your Smart TV, Chromecast, or DLNA devices.
+
+  Key features:
+  * Domain Lock & Anti-Redirect protection: stops unwanted redirects, popups, and fake players by keeping you strictly on the authorized domain.
+  * Built-in AdBlock: eliminates intrusive video ads and overlays.
+  * Local HLS Key Decryption Proxy: stream encrypted HLS streams seamlessly to devices with restricted origin policies.
+  * 100 MB RAM Buffer for smooth playback with no interruptions.
+  * 100% open-source, no trackers, no telemetry.
+
+RepoType: git
+Repo: https://github.com/Casual70/TVCastBrowser-iOS.git
+
+Builds:
+  - versionName: 1.6.0
+    versionCode: 7
+    commit: v1.6.0
+    subdir: .
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.6.0
+CurrentVersionCode: 7

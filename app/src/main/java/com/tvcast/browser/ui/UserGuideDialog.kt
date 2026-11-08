@@ -1,5 +1,4 @@
 package com.tvcast.browser.ui
-
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,8 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,7 +64,7 @@ fun UserGuideDialog(
     val steps = remember {
         listOf(
             GuideStep(
-                icon = Icons.Default.Search,
+                icon = Icons.Default.Language,
                 titleRes = R.string.user_guide_step1_title,
                 descRes = R.string.user_guide_step1_desc
             ),
@@ -75,7 +74,7 @@ fun UserGuideDialog(
                 descRes = R.string.user_guide_step2_desc
             ),
             GuideStep(
-                icon = Icons.Default.PlayArrow,
+                icon = Icons.Default.PlayCircle,
                 titleRes = R.string.user_guide_step3_title,
                 descRes = R.string.user_guide_step3_desc
             ),
@@ -277,3 +276,4 @@ fun UserGuideDialog(
         }
     }
 }
+

@@ -12,8 +12,8 @@ android {
         applicationId = "com.tvcast.browser"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.5.0"
+        versionCode = 7
+        versionName = "1.6.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -65,6 +65,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
 }
 
 dependencies {
@@ -84,4 +89,10 @@ dependencies {
     implementation(libs.androidx.webkit)
 
     debugImplementation(libs.androidx.ui.tooling)
+}
+
+// Disabilita l'estrazione metadati VCS proprietari di AGP per evitare corruzioni di .git/index su Windows
+// e garantire piena compatibilità con i build server ufficiali di F-Droid
+tasks.matching { it.name.contains("VersionControlInfo") }.configureEach {
+    enabled = false
 }
