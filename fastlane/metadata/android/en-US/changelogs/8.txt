@@ -1,0 +1,4 @@
+- Added Android Auto support (CarAppService & MediaBrowser)
+- Dashboard and steering wheel audio playback controls
+- Car display screen showing streaming status and quick phone trigger
+- Maintained 100% FOSS compliance for F-Droid

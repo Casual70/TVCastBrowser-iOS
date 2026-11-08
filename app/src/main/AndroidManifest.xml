@@ -42,12 +42,39 @@
             </intent-filter>
         </activity>
 
+        <!-- Dichiarazione compatibilità Android Auto -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
         <!-- Servizio Foreground per mantenere viva e sincronizzata la connessione Cast e il Buffer 100MB anche in background -->
         <service
             android:name=".cast.CastForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Servizio Android Auto Car App (UI interattiva sullo schermo dell'auto) -->
+        <service
+            android:name=".auto.TvCastCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
+
+        <!-- Servizio Audio MediaBrowserService per comandi al volante e widget Android Auto -->
+        <service
+            android:name=".auto.TvCastMediaBrowserService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

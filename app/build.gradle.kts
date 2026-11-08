@@ -12,8 +12,8 @@ android {
         applicationId = "com.tvcast.browser"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6.0"
+        versionCode = 8
+        versionName = "1.7.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -87,6 +87,11 @@ dependencies {
 
     // Enhanced WebView capabilities (Open Source AndroidX WebKit)
     implementation(libs.androidx.webkit)
+
+    // Android Auto & Media Session (100% FOSS AndroidX Jetpack)
+    implementation(libs.androidx.media)
+    implementation(libs.androidx.car.app)
+    implementation(libs.androidx.car.app.projected)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

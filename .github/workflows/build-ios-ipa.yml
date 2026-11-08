@@ -31,13 +31,13 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace --no-daemon
-          find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} TVCastBrowser-v1.6.0.apk \;
+          find app/build/outputs/apk/release/ -name "*.apk" -exec cp {} TVCastBrowser-Android-Release.apk \;
 
       - name: Upload Android Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: TVCastBrowser-Android-FOSS-APK
-          path: TVCastBrowser-v1.6.0.apk
+          path: TVCastBrowser-Android-Release.apk
           retention-days: 30
 
   build-ios:
@@ -102,6 +102,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            TVCastBrowser-v1.6.0.apk
+            TVCastBrowser-Android-Release.apk
             TVCastBrowser-iOS.ipa
           generate_release_notes: true
