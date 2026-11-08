@@ -1,18 +1,14 @@
 package com.tvcast.browser.auto
 
-import android.content.Intent
 import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
-import androidx.car.app.model.CarColor
-import androidx.car.app.model.CarIcon
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import com.tvcast.browser.MainActivity
 
 /**
  * Schermata principale renderizzata sullo schermo dell'auto.
@@ -47,17 +43,17 @@ class TvCastMainCarScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // Riga 3: Avvia / Apri sul Telefono
+        // Riga 3: Sincronizzazione Smartphone
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("Apri Browser su Smartphone")
-                .addText("Tocca per portare il browser web in primo piano sul telefono")
+                .setTitle("Controllo Streaming da Smartphone")
+                .addText("Naviga sul web o seleziona video dal telefono a veicolo fermo")
                 .setOnClickListener {
-                    val launchIntent = Intent(carContext, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    }
-                    carContext.startActivity(launchIntent)
-                    CarToast.makeText(carContext, "Browser aperto sul telefono", CarToast.LENGTH_SHORT).show()
+                    CarToast.makeText(
+                        carContext,
+                        "Apri TV Cast Browser dal telefono per selezionare un nuovo video",
+                        CarToast.LENGTH_LONG
+                    ).show()
                 }
                 .build()
         )
@@ -81,3 +77,4 @@ class TvCastMainCarScreen(carContext: CarContext) : Screen(carContext) {
             .build()
     }
 }
+

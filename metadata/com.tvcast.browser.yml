@@ -40,6 +40,8 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
+CurrentVersion: 1.6.0
+CurrentVersionCode: 7
 CurrentVersion: 1.7.0
 CurrentVersionCode: 8
 

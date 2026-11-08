@@ -2,3 +2,4 @@
 - Controlli audio da cruscotto e comandi al volante durante la riproduzione
 - Schermata di stato e gestione stream su display auto
 - Mantenuta piena compatibilità 100% FOSS per F-Droid
+

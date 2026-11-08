@@ -54,3 +54,4 @@ Per testare l'interfaccia di Android Auto su PC senza dover andare in auto:
    & "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto\desktop-head-unit.exe"
    ```
 5. Si aprirà la finestra dell'infotainment dell'auto simulata sul PC, dove potrai interagire con TV Cast Browser!
+

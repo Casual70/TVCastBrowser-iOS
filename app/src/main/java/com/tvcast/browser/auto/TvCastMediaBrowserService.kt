@@ -27,6 +27,11 @@ class TvCastMediaBrowserService : MediaBrowserServiceCompat() {
         super.onCreate()
 
         mediaSession = MediaSessionCompat(this, "TvCastMediaSession").apply {
+            setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                        MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onPlay() {
                     updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
@@ -108,3 +113,4 @@ class TvCastMediaBrowserService : MediaBrowserServiceCompat() {
         super.onDestroy()
     }
 }
+
