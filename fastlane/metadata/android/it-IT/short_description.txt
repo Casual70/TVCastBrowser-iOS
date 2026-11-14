@@ -1,2 +1,1 @@
-Browser web FOSS con trasmissione video su Smart TV, proxy HLS e blocco popup.
-
+Browser FOSS per Smart TV con proxy HLS, Blocco Dominio e AdBlock.

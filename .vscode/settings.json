@@ -1,5 +1,13 @@
 {
     "git.autorefresh": true,
-    "git.autofetch": false
+    "git.autofetch": false,
+    "java.jdt.ls.java.home": "C:\\Program Files\\JetBrains\\PhpStorm 2023.3.2\\jbr",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-21",
+            "path": "C:\\Program Files\\JetBrains\\PhpStorm 2023.3.2\\jbr",
+            "default": true
+        }
+    ]
 }
 
